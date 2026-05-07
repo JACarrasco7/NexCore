@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Lint · Typecheck · Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build (con env mock)
+        run: npm run build
+        env:
+          DATABASE_URL: "mysql://root:@localhost:3306/app_fitness_ci"
+          AUTH_SECRET: "ci-secret-at-least-32-chars-long-pad"
+          NEXTAUTH_URL: "http://localhost:3000"
+          AUTH_TRUST_HOST: "true"
+          RESEND_API_KEY: "re_mock_key"
+          EMAIL_FROM: "noreply@example.com"
+          UPSTASH_REDIS_REST_URL: "https://mock.upstash.io"
+          UPSTASH_REDIS_REST_TOKEN: "mock_token"
+          ONESIGNAL_APP_ID: "mock-app-id"
+          ONESIGNAL_API_KEY: "mock-api-key"
+          SMS_ENABLED: "false"
+          TWILIO_ACCOUNT_SID: "mock"
+          TWILIO_AUTH_TOKEN: "mock"
+          TWILIO_FROM_NUMBER: "+10000000000"
+          MFP_USE_RAPIDAPI: "false"
+          MFP_API_KEY: ""
+          MFP_API_HOST: ""
+          MFP_API_BASE_URL: ""
