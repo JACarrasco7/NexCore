@@ -1,139 +1,114 @@
-/**
- * In-memory rate limiting utility.
- * Suitable for single-process dev/staging environments.
- * For production multi-process, use Redis or Vercel KV.
+﻿/**
+ * Rate limiting con @upstash/ratelimit (sliding window).
+ *
+ * Si las variables de Upstash no estan configuradas (dev local), cae
+ * silenciosamente a un Map en memoria de proceso unico.
+ *
+ * Compatibilidad Edge Runtime OK - usa fetch interno del SDK.
  */
 
-interface RateLimitEntry {
-  count: number;
-  resetAt: number;
+import { Ratelimit } from '@upstash/ratelimit'
+import { Redis } from '@upstash/redis'
+
+// Fallback en memoria
+interface MemEntry {
+  count: number
+  resetAt: number
 }
+const memStore = new Map<string, MemEntry>()
 
-const limits = new Map<string, RateLimitEntry>();
+setInterval(
+  () => {
+    const now = Date.now()
+    for (const [key, entry] of memStore) {
+      if (now > entry.resetAt) memStore.delete(key)
+    }
+  },
+  60 * 60 * 1000
+)
 
-// Upstash REST config (optional). If env vars are set, use Upstash HTTP API.
-const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
-const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+async function memCheckLimit(
+  key: string,
+  max: number,
+  windowMs: number
+): Promise<{ ok: boolean; remaining: number; resetAt: number }> {
+  const now = Date.now()
+  const entry = memStore.get(key)
 
-async function upstashFetch(path: string, method: string = "GET") {
-  if (!upstashUrl || !upstashToken) throw new Error("Upstash not configured");
-  const base = upstashUrl.replace(/\/$/, "");
-  const p = path.replace(/^\//, "");
-  const url = `${base}/${p}`;
-  const res = await fetch(url, { method, headers: { Authorization: `Bearer ${upstashToken}` } });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Upstash request failed ${res.status} ${text}`);
+  if (!entry || now > entry.resetAt) {
+    const newEntry: MemEntry = { count: 1, resetAt: now + windowMs }
+    memStore.set(key, newEntry)
+    return { ok: true, remaining: max - 1, resetAt: newEntry.resetAt }
   }
-  const json = await res.json().catch(() => ({}));
-  return (json && (json.result ?? json)) as any;
+
+  if (entry.count >= max) {
+    return { ok: false, remaining: 0, resetAt: entry.resetAt }
+  }
+
+  entry.count++
+  return { ok: true, remaining: max - entry.count, resetAt: entry.resetAt }
 }
 
-async function upstashIncr(key: string) {
-  return upstashFetch(`incr/${encodeURIComponent(key)}`, "POST");
+// Cliente Upstash
+function buildRedis(): Redis | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN
+  if (!url || !token) return null
+  return new Redis({ url, token })
 }
 
-async function upstashTtl(key: string) {
-  return upstashFetch(`ttl/${encodeURIComponent(key)}`, "GET");
+const redisClient = buildRedis()
+
+function buildLimiter(max: number, windowSeconds: number): Ratelimit | null {
+  if (!redisClient) return null
+  return new Ratelimit({
+    redis: redisClient,
+    limiter: Ratelimit.slidingWindow(max, `${windowSeconds} s`),
+    analytics: false,
+  })
 }
 
-async function upstashExpire(key: string, seconds: number) {
-  return upstashFetch(`expire/${encodeURIComponent(key)}/${seconds}`, "POST");
-}
-
-/**
- * Generate a unique key for rate limiting (IP + optional userId).
- */
-export function getRateLimitKey(ip: string, userId?: string): string {
-  return userId ? `${userId}:${ip}` : ip;
-}
-
-/**
- * Check if a request exceeds rate limit.
- * If Upstash is configured, use Redis (works in Edge). Otherwise fallback to in-memory Map.
- * @returns Promise resolving to { ok, remaining, resetAt }
- */
 export async function checkRateLimit(
   key: string,
   maxRequests: number,
   windowSeconds: number
 ): Promise<{ ok: boolean; remaining: number; resetAt: number }> {
-  const now = Date.now();
-
-  if (upstashUrl && upstashToken) {
+  if (redisClient) {
     try {
-      const rKey = `rate:${key}`;
-      const countRes = await upstashIncr(rKey);
-      const count = Number(countRes ?? 0);
-      let ttl = await upstashTtl(rKey);
-      ttl = Number(ttl ?? -1);
-      if (ttl === -1) {
-        await upstashExpire(rKey, windowSeconds);
-        ttl = windowSeconds;
+      const limiter = buildLimiter(maxRequests, windowSeconds)
+      if (limiter) {
+        const result = await limiter.limit(`rate:${key}`)
+        return {
+          ok: result.success,
+          remaining: result.remaining,
+          resetAt: result.reset,
+        }
       }
-      if (ttl < 0) ttl = windowSeconds;
-
-      const ok = count <= maxRequests;
-      const remaining = ok ? Math.max(0, maxRequests - count) : 0;
-      const resetAt = now + ttl * 1000;
-      return { ok, remaining, resetAt };
-    } catch (e) {
-      console.warn('[rate-limit] Upstash error, falling back to memory', e);
+    } catch {
+      // Degradar a memoria si Upstash falla
     }
   }
 
-  // In-memory fallback (suitable for single-process dev)
-  const entry = limits.get(key);
-
-  // New or expired entry
-  if (!entry || now > entry.resetAt) {
-    const newEntry = { count: 1, resetAt: now + windowSeconds * 1000 };
-    limits.set(key, newEntry);
-    return { ok: true, remaining: maxRequests - 1, resetAt: newEntry.resetAt };
-  }
-
-  // Exceeds limit
-  if (entry.count >= maxRequests) {
-    return { ok: false, remaining: 0, resetAt: entry.resetAt };
-  }
-
-  // Within limit
-  entry.count++;
-  return { ok: true, remaining: maxRequests - entry.count, resetAt: entry.resetAt };
+  return memCheckLimit(key, maxRequests, windowSeconds * 1000)
 }
 
-/**
- * Extract IP from request headers.
- * Handles X-Forwarded-For and CF-Connecting-IP (behind proxies).
- */
+export function getRateLimitKey(ip: string, userId?: string): string {
+  return userId ? `${userId}:${ip}` : ip
+}
+
 export function getClientIp(headers: Headers): string {
-  const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  if (forwarded) return forwarded;
+  const forwarded = headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+  if (forwarded) return forwarded
 
-  const cloudflareIp = headers.get("cf-connecting-ip");
-  if (cloudflareIp) return cloudflareIp;
+  const cfIp = headers.get('cf-connecting-ip')
+  if (cfIp) return cfIp
 
-  return "unknown";
+  return 'unknown'
 }
 
-/**
- * Common rate limit presets.
- */
 export const LIMITS = {
-  AUTH: { maxRequests: 5, windowSeconds: 60 }, // 5 requests per minute
-  REGISTER: { maxRequests: 3, windowSeconds: 300 }, // 3 per 5 min
-  OTP: { maxRequests: 10, windowSeconds: 60 }, // 10 per minute
-  GENERAL: { maxRequests: 60, windowSeconds: 60 }, // 60 per minute
-};
-
-/**
- * Cleanup expired entries every hour.
- */
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of limits.entries()) {
-    if (now > entry.resetAt) {
-      limits.delete(key);
-    }
-  }
-}, 60 * 60 * 1000);
+  AUTH: { maxRequests: 5, windowSeconds: 60 },
+  REGISTER: { maxRequests: 3, windowSeconds: 300 },
+  OTP: { maxRequests: 10, windowSeconds: 60 },
+  GENERAL: { maxRequests: 60, windowSeconds: 60 },
+} as const
