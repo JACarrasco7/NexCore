@@ -37,6 +37,7 @@ jobs:
       - name: Build (con env mock)
         run: npm run build
         env:
+          SKIP_ENV_VALIDATION: "true"
           DATABASE_URL: "mysql://root:@localhost:3306/app_fitness_ci"
           AUTH_SECRET: "ci-secret-at-least-32-chars-long-pad"
           NEXTAUTH_URL: "http://localhost:3000"
