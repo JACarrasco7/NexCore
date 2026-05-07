@@ -1,26 +1,158 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f5f4fc;
+  --foreground: #0d0b17;
+  --surface: rgba(255, 255, 255, 0.92);
+  --surface-strong: #ffffff;
+  --line: rgba(99, 60, 220, 0.16);
+  --accent: #6d28d9;
+  --accent-strong: #4c1d95;
+  --accent-soft: rgba(109, 40, 217, 0.10);
+  --accent-glow: rgba(109, 40, 217, 0.22);
+  --success: #047857;
+  --warning: #b45309;
+  --danger: #b91c1c;
+  /* macro colors */
+  --macro-protein: #059669;
+  --macro-carbs: #2563eb;
+  --macro-fat: #d97706;
+  /* ui extras */
+  --card-alt-bg: #fdf4ea;
+  --card-alt-text: #1c0e00;
+  --card-alt-muted: #6b3a1f;
+  --card-alt-item-bg: rgba(180, 100, 20, 0.09);
+  --card-alt-item-border: rgba(180, 100, 20, 0.18);
+  --tooltip-bg: #ffffff;
+  --tooltip-border: rgba(109, 40, 217, 0.20);
+  --tooltip-text: #0d0b17;
+  --input-bg: #ffffff;
+  --input-focus-ring: rgba(109, 40, 217, 0.25);
+  --shadow-card: 0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(109,40,217,0.06);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-strong: var(--surface-strong);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: light;
+  font-size: 16px;
+  overflow-x: clip;
+}
+
+@media (min-width: 1536px) {
+  html {
+    font-size: 17px;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  line-height: 1.5;
+  overflow-x: clip;
 }
+
+/* Light mode body: sutil, nada de gradient oscuro */
+body {
+  background-image:
+    radial-gradient(ellipse at top left, rgba(109, 40, 217, 0.06), transparent 45%),
+    radial-gradient(ellipse at bottom right, rgba(16, 185, 129, 0.04), transparent 40%);
+}
+
+.dark {
+    color-scheme: dark;
+    --background: #08080f;
+    --foreground: #e8e4ff;
+    --surface: rgba(14, 12, 26, 0.90);
+    --surface-strong: #111028;
+    --line: rgba(139, 92, 246, 0.15);
+    --accent: #8b5cf6;
+    --accent-strong: #a78bfa;
+    --accent-soft: rgba(139, 92, 246, 0.16);
+    --accent-glow: rgba(139, 92, 246, 0.30);
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #f43f5e;
+    --macro-protein: #34d399;
+    --macro-carbs: #60a5fa;
+    --macro-fat: #fbbf24;
+    --card-alt-bg: #231b18;
+    --card-alt-text: #fff8f2;
+    --card-alt-muted: #f7e9dc;
+    --card-alt-item-bg: rgba(255,255,255,0.05);
+    --card-alt-item-border: rgba(255,255,255,0.10);
+    --tooltip-bg: #0c1122;
+    --tooltip-border: rgba(148,163,184,0.20);
+    --tooltip-text: #e8e4ff;
+    --input-bg: #111028;
+    --input-focus-ring: rgba(139,92,246,0.30);
+    --shadow-card: 0 4px 24px rgba(0,0,0,0.40);
+  }
+
+.dark body {
+    background-image:
+      radial-gradient(ellipse at top center, rgba(109, 40, 217, 0.22), transparent 45%),
+      radial-gradient(ellipse at bottom right, rgba(16, 185, 129, 0.10), transparent 35%);
+}
+
+/* ── Focus ring accesible global ─────────────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Focus para inputs: caja de sombra + borde (outline está reseteado por Tailwind) */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  box-shadow: 0 0 0 3px var(--input-focus-ring);
+}
+
+/* Botones: no usar outline cuadrado nativo, usar box-shadow */
+button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--input-focus-ring);
+}
+
+/* ── Scrollbar sutil ─────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(109, 40, 217, 0.35); }
+
+/* ── Inputs/Textareas base accesibles ─────────────────────────────────────── */
+input, textarea, select {
+  background: var(--input-bg);
+  color: var(--foreground);
+}
+input::placeholder, textarea::placeholder {
+  color: color-mix(in srgb, var(--foreground) 35%, transparent);
+}
+
+/* ── Transiciones base ────────────────────────────────────────────────────── */
+button, a {
+  transition: opacity 0.15s, background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+

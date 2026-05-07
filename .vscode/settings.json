@@ -1,0 +1,13 @@
+{
+  "ollama.models": ["codellama:13b"],
+  "ollama.selectedModel": "codellama:13b",
+  "ollama.endpoint": "http://localhost:11434",
+  "[typescript]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
+}

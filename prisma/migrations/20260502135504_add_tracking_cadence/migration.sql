@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE `athlete` ADD COLUMN `measurementCadence` ENUM('DAILY', 'WEEKLY', 'WORKOUT', 'CHECKIN', 'CUSTOM_DAYS') NOT NULL DEFAULT 'CHECKIN',
+    ADD COLUMN `measurementEveryDays` INTEGER NULL,
+    ADD COLUMN `reviewCadence` ENUM('WEEKLY', 'CHECKIN', 'CUSTOM_DAYS') NOT NULL DEFAULT 'CHECKIN',
+    ADD COLUMN `reviewEveryDays` INTEGER NULL;
