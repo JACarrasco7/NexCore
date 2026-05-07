@@ -1,9 +1,0 @@
-HTTP/1.1 200 OK
-vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
-content-type: application/json
-set-cookie: authjs.session-token=eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2Q0JDLUhTNTEyIiwia2lkIjoiT2hEOGhlRDVNN0JBYl8yX1UwRGFUb3drcG9kQUJmNUFRVzVlSjFEWk9pMVplYllhMzVBQURiM1Vtbktka2ZZMWtBWjlIWlNaY3d4XzZYZTZ6aktxSWcifQ..3CIGPadHILj5-o5zQf4gtg.bU8M6IL7CqtQFkIiSdJhMv6nxOW3qjxbl0YCEGfyW6WykqgTBQezG4_I-k5AhWPl6HXfPdnFGRuOqnX6-HqhyxYg1YkwM-ruGFz8UER9xF64tqDu6iSE01HGUPjMO69FjU799gdn7m2u-vLvF4TJRUHgxRwnqDk0A1f1WXDq_b2OSisP_WJK8JiGSONlFk9df7IJiuaqEYgBWl0_LCpzz6WEWn5oExj9vwz8XiLtrl9wt2074k4sotirPsPhHCkeVcHdXNzOjjcF-WlSsM8CLFCkRZkbVJ1e5MjZbqFKQiFPTgJZiUnt1i4mkLQ1OZVV-F4Rk-D0OpQWXb9AfQs6GpoCHFiNs8uKEdzE_fzaOZXG3L_O-_ukWxi3XCNc8IZ-.nISLjNJB3fjaP3o9Qcu1SgPffhpuA31fi2pqtaahYFs; Path=/; Expires=Sat, 06 Jun 2026 16:25:14 GMT; HttpOnly; SameSite=lax
-Date: Thu, 07 May 2026 16:25:14 GMT
-Connection: keep-alive
-Keep-Alive: timeout=5
-Transfer-Encoding: chunked
-
