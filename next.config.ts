@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next'
+import { withSentryConfig } from '@sentry/nextjs'
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -63,4 +64,12 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+export default withSentryConfig(nextConfig, {
+  // Solo subir source maps si hay DSN configurado
+  silent: !process.env.SENTRY_DSN,
+  disableLogger: true,
+  // Suprimir la telemetría de Sentry
+  telemetry: false,
+  // No incluir el SDK en el bundle del cliente si no hay DSN
+  autoInstrumentServerFunctions: !!process.env.SENTRY_DSN,
+})
