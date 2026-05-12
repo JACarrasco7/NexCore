@@ -1,6 +1,6 @@
-# Apex Coach OS
+# NEXUM
 
-MVP inicial para una plataforma boutique de gestion coach-atleta orientada a preparadores premium. La primera version arranca con una base web en Next.js para validar el flujo central antes de entrar en automatizaciones mas complejas.
+CARRIX Techinicial para una plataforma boutique de gestion coach-atleta orientada a preparadores premium. La primera version arranca con una base web en Next.js para validar el flujo central antes de entrar en automatizaciones mas complejas.
 
 ## Estado actual
 

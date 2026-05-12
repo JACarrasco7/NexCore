@@ -1,30 +1,31 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata } from 'next'
+import { Geist, Geist_Mono } from 'next/font/google'
 
-import { AppShell } from "@/components/app-shell";
-import { Providers } from "@/components/providers";
+import { AppShell } from '@/components/app-shell'
+import { Providers } from '@/components/providers'
 
-import "./globals.css";
+import './globals.css'
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
+})
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
+})
 
 export const metadata: Metadata = {
-  title: "Apex Coach OS",
-  description: "MVP para gestion premium de coaches y atletas con dashboard, entrenamiento y check-in.",
-};
+  title: 'NEXUM',
+  description:
+    'CARRIX Techpara gestion premium de coaches y atletas con dashboard, entrenamiento y check-in.',
+}
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: React.ReactNode
 }>) {
   return (
     <html
@@ -40,11 +41,11 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col">
+      <body className="flex min-h-full flex-col">
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>
       </body>
     </html>
-  );
+  )
 }

@@ -1,1 +1,1 @@
-declare module "otplib";
+declare module 'otplib'

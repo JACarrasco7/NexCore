@@ -1,4 +1,4 @@
-// Apex Coach OS — Prisma Schema
+// NEXUM — Prisma Schema
 // MySQL (Laragon) + NextAuth.js v5
 
 generator client {
@@ -51,6 +51,8 @@ model User {
   otpTokens     OtpToken[]
   auditLogs     AuditLog[]
   documentSignatures DocumentSignature[]
+  sentInvites     CoachInvite[] @relation("CoachInvitesSent")
+  acceptedInvites CoachInvite[] @relation("CoachInvitesAccepted")
 }
 
 enum Role {
@@ -75,6 +77,7 @@ enum OtpType {
   LOGIN
   SIGNATURE
   RESET
+  VERIFICATION
 }
 
 enum SignatureStatus {
@@ -96,6 +99,11 @@ enum NotificationDeliveryStatus {
   FAILED
   BOUNCED
   DELIVERED
+}
+
+enum VerificationMethod {
+  EMAIL
+  SMS
 }
 
 model Account {
@@ -140,8 +148,12 @@ model Coach {
   userId      String   @unique
   displayName String
   phone       String?
+  phoneVerified Boolean @default(false)
+  phoneVerificationToken String? @db.VarChar(255)
   bio         String?  @db.Text
   createdAt   DateTime @default(now())
+  trialStartsAt DateTime @default(now())
+  trialEndsAt DateTime
 
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   athletes  Athlete[]
@@ -153,7 +165,6 @@ model Coach {
   trainingTemplates   TrainingTemplate[]
   dashboardPresets    CoachDashboardPreset[]
   macroTargets        AthleteMacroTarget[]
-  teamMemberships     TeamMembership[]
 
   @@index([userId])
 }
@@ -167,7 +178,9 @@ model Athlete {
   teamId             String?
   fullName           String
   phone              String?
+  phoneVerified      Boolean  @default(false)
   contactEmail       String?
+  verificationMethod VerificationMethod @default(EMAIL)
   primaryComment     String?  @db.Text
   goal               Goal     @default(VOLUMEN)
   phaseLabel         String   @default("Semana 1")
@@ -179,12 +192,10 @@ model Athlete {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  servicePlanId String?
-
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   coach          Coach          @relation(fields: [coachId], references: [id])
   team           Team?          @relation(fields: [teamId], references: [id])
-  servicePlan    ServicePlan?   @relation(fields: [servicePlanId], references: [id])
+  subscriptions  AthleteSubscription[]
   checkIns         CheckIn[]
   dailyLogs        DailyLog[]
   sessionLogs      SessionLog[]
@@ -221,13 +232,14 @@ model Team {
   // contractTemplate movido a TeamSettings (1:1)
   contractTemplate String? @db.Text  // @deprecated — usar TeamSettings.contractTemplate
 
-  memberships TeamMembership[]
   userMemberships TeamUserMembership[]
   athletes    Athlete[]
   goals       TeamGoal[]
   phases      TeamPhase[]
+  invites     CoachInvite[]       @relation("CoachInvites")
   posts       TeamPost[]
   settings    TeamSettings?
+  billingPlans TeamBillingPlan[]
 }
 
 // ─── TeamSettings (configuración escalable por tenant) ────────────────────────
@@ -293,22 +305,6 @@ model TeamUserMembership {
   @@index([teamId, isActive, role])
 }
 
-model TeamMembership {
-  id        String   @id @default(cuid())
-  teamId    String
-  coachId   String
-  role      TeamRole @default(MEMBER)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  team      Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  coach     Coach @relation(fields: [coachId], references: [id], onDelete: Cascade)
-
-  @@unique([teamId, coachId])
-  @@index([coachId, isActive])
-}
-
 enum TeamRole {
   ADMIN
   MEMBER
@@ -348,6 +344,81 @@ model TeamPhase {
   @@unique([teamId, code])
   @@index([teamId, isVisible, order])
   @@index([teamId, order, createdAt])
+}
+
+// ─── TeamBillingPlan (facturación por team) ─────────────────────────────────
+
+model TeamBillingPlan {
+  id              String   @id @default(cuid())
+  teamId          String
+  planName        String
+  description     String?  @db.Text
+  price           Float    @default(0)
+  currency        String   @default("EUR")
+  billingCycle    String   @default("MONTHLY") // MONTHLY, YEARLY, ONE_TIME
+  maxAthletes     Int?     // null = unlimited
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([teamId, isActive])
+}
+
+// ─── CoachInvite (invitaciones pendientes al equipo) ──────────────────────────
+
+model CoachInvite {
+  id         String   @id @default(cuid())
+  teamId     String
+  invitedEmail String
+  invitedByUserId String
+  token      String   @unique @db.VarChar(255)
+  role       TeamRole @default(MEMBER)
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  acceptedByUserId String?
+  createdAt  DateTime @default(now())
+
+  team           Team  @relation("CoachInvites", fields: [teamId], references: [id], onDelete: Cascade)
+  invitedByUser  User  @relation("CoachInvitesSent", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  acceptedByUser User? @relation("CoachInvitesAccepted", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([teamId, invitedEmail])
+  @@index([token])
+  @@index([teamId, expiresAt])
+  @@index([acceptedAt])
+}
+
+// ─── AthleteSubscription (suscripción a plan de servicio) ────────────────────
+
+model AthleteSubscription {
+  id             String   @id @default(cuid())
+  athleteId      String
+  servicePlanId  String
+  status         SubscriptionStatus @default(ACTIVE)
+  startDate      DateTime @default(now())
+  endDate        DateTime?
+  cancelledAt    DateTime?
+  priceEurPaid   Float    @default(0)
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  athlete     Athlete     @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  servicePlan ServicePlan @relation(fields: [servicePlanId], references: [id], onDelete: Restrict)
+
+  @@index([athleteId, status])
+  @@index([servicePlanId])
+  @@index([status, endDate])
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  EXPIRED
 }
 
 // ─── AthleteConsent (contrato legal aceptado digitalmente) ────────────────────
@@ -547,6 +618,8 @@ model OtpToken {
   type         OtpType   @default(LOGIN)
   expiresAt    DateTime
   attemptsLeft Int       @default(3)
+  usedAt       DateTime?  // Cuando fue utilizado
+  metadata     Json?      // JSON para guardar datos contextuales (phone, etc)
   createdAt    DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -883,8 +956,8 @@ model ServicePlan {
   checkinFreqDays    Int      @default(7)
   createdAt          DateTime @default(now())
 
-  coach    Coach     @relation(fields: [coachId], references: [id], onDelete: Cascade)
-  athletes Athlete[]
+  coach       Coach    @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  subscriptions AthleteSubscription[]
 }
 
 // ─── Document (dietas, PDFs, etc.) ────────────────────────────────────────────
@@ -996,3 +1069,4 @@ model AthleteContextProfile {
 
   athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
 }
+

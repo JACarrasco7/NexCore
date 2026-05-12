@@ -6,14 +6,14 @@
 
 ## 0. Diagnóstico ejecutivo
 
-| Aspecto | Hoy | Objetivo |
-|---|---|---|
-| Arquitectura | 8/10 sólida | Mantener |
-| Cobertura MVP | 7/10 (70% flujos) | 95% |
-| UX/Estilo | 6/10 inconsistente | 9/10 sistema unificado |
-| APIs | 6.5/10 (falta CRUD planes) | 9/10 endpoints completos |
-| Componentes reutilizables | 5/10 | 9/10 design system |
-| Producción ready | 4/10 (TODOs, mock data) | 9/10 |
+| Aspecto                   | Hoy                        | Objetivo                 |
+| ------------------------- | -------------------------- | ------------------------ |
+| Arquitectura              | 8/10 sólida                | Mantener                 |
+| Cobertura CARRIX Tech     | 7/10 (70% flujos)          | 95%                      |
+| UX/Estilo                 | 6/10 inconsistente         | 9/10 sistema unificado   |
+| APIs                      | 6.5/10 (falta CRUD planes) | 9/10 endpoints completos |
+| Componentes reutilizables | 5/10                       | 9/10 design system       |
+| Producción ready          | 4/10 (TODOs, mock data)    | 9/10                     |
 
 **Veredicto:** base demo sólida, no producción. 2-3 sprints enfocados.
 
@@ -21,14 +21,14 @@
 
 ## 1. Bugs críticos a tapar (P0 — esta semana)
 
-| # | Bug | Archivo | Esfuerzo |
-|---|---|---|---|
-| 1 | Weight hardcodeado 75kg en cálculos RIR | `src/app/athlete/training-log/page.tsx` (~L321 TODO) | S |
-| 2 | Stats del dashboard del coach son mock | `src/app/coach/page.tsx` | M |
-| 3 | Delete actions sin confirmación (riesgo data loss) | global | S |
-| 4 | `/athlete/[id]` sin protección de rol (cualquier athlete puede ver otro) | `src/app/athlete/[id]/page.tsx` | S |
-| 5 | Mobile: grid 4 col no responde en `coach/page` y athlete list | varios | S |
-| 6 | Coach signals usa tooltips falsos (info "escondida") | `coach/athletes/[id]` | S |
+| #   | Bug                                                                      | Archivo                                              | Esfuerzo |
+| --- | ------------------------------------------------------------------------ | ---------------------------------------------------- | -------- |
+| 1   | Weight hardcodeado 75kg en cálculos RIR                                  | `src/app/athlete/training-log/page.tsx` (~L321 TODO) | S        |
+| 2   | Stats del dashboard del coach son mock                                   | `src/app/coach/page.tsx`                             | M        |
+| 3   | Delete actions sin confirmación (riesgo data loss)                       | global                                               | S        |
+| 4   | `/athlete/[id]` sin protección de rol (cualquier athlete puede ver otro) | `src/app/athlete/[id]/page.tsx`                      | S        |
+| 5   | Mobile: grid 4 col no responde en `coach/page` y athlete list            | varios                                               | S        |
+| 6   | Coach signals usa tooltips falsos (info "escondida")                     | `coach/athletes/[id]`                                | S        |
 
 ---
 
@@ -38,19 +38,19 @@ Sin esto el resto se vuelve inconsistente. Crear primero.
 
 ### 2.1 Componentes base nuevos
 
-| Componente | Path | Uso |
-|---|---|---|
-| `Modal` | `src/components/ui/modal.tsx` | Reemplaza modales ad-hoc en cada página |
-| `ConfirmDialog` | `src/components/ui/confirm-dialog.tsx` | Delete/acciones destructivas |
-| `Toast` (con provider) | `src/components/ui/toast.tsx` | Feedback no bloqueante (guardado, error, etc.) |
-| `EmptyState` | `src/components/ui/empty-state.tsx` | Listas vacías con CTA |
-| `Skeleton` | `src/components/ui/skeleton.tsx` | Loading states |
-| `Pagination` | `src/components/ui/pagination.tsx` | Tablas largas |
-| `DataTable` | `src/components/ui/data-table.tsx` | Sortable/paginated genérico |
-| `Dropdown` | `src/components/ui/dropdown.tsx` | Menús de acciones (3 puntos) |
-| `Breadcrumb` | `src/components/ui/breadcrumb.tsx` | Navegación profunda |
-| `Tabs` | `src/components/ui/tabs.tsx` | Reemplaza el patrón TABS inline en cada página |
-| `Tooltip` (Popover real) | `src/components/ui/tooltip.tsx` | Floating UI / Radix |
+| Componente               | Path                                   | Uso                                            |
+| ------------------------ | -------------------------------------- | ---------------------------------------------- |
+| `Modal`                  | `src/components/ui/modal.tsx`          | Reemplaza modales ad-hoc en cada página        |
+| `ConfirmDialog`          | `src/components/ui/confirm-dialog.tsx` | Delete/acciones destructivas                   |
+| `Toast` (con provider)   | `src/components/ui/toast.tsx`          | Feedback no bloqueante (guardado, error, etc.) |
+| `EmptyState`             | `src/components/ui/empty-state.tsx`    | Listas vacías con CTA                          |
+| `Skeleton`               | `src/components/ui/skeleton.tsx`       | Loading states                                 |
+| `Pagination`             | `src/components/ui/pagination.tsx`     | Tablas largas                                  |
+| `DataTable`              | `src/components/ui/data-table.tsx`     | Sortable/paginated genérico                    |
+| `Dropdown`               | `src/components/ui/dropdown.tsx`       | Menús de acciones (3 puntos)                   |
+| `Breadcrumb`             | `src/components/ui/breadcrumb.tsx`     | Navegación profunda                            |
+| `Tabs`                   | `src/components/ui/tabs.tsx`           | Reemplaza el patrón TABS inline en cada página |
+| `Tooltip` (Popover real) | `src/components/ui/tooltip.tsx`        | Floating UI / Radix                            |
 
 ### 2.2 Design tokens — consolidar
 
@@ -66,27 +66,27 @@ Sin esto el resto se vuelve inconsistente. Crear primero.
 
 ### 3.1 Críticas (P0)
 
-| Endpoint | Método | Función | Esfuerzo |
-|---|---|---|---|
-| `/api/plans/[id]` | PATCH/DELETE | Editar/eliminar plan existente | M |
-| `/api/plans/[id]/sessions/[sid]` | PATCH/DELETE | Editar sesión individual del plan | M |
-| `/api/plans/[id]/sessions/[sid]/exercises/[eid]` | PATCH/DELETE | Editar ejercicio individual | M |
-| `/api/notifications` | GET/POST/PATCH | Sistema de notificaciones | M |
-| `/api/notifications/mark-read` | POST | Marcar leídas (bulk) | S |
-| `/api/coach/today` | GET | "Qué revisar HOY" — inbox real | M |
+| Endpoint                                         | Método         | Función                           | Esfuerzo |
+| ------------------------------------------------ | -------------- | --------------------------------- | -------- |
+| `/api/plans/[id]`                                | PATCH/DELETE   | Editar/eliminar plan existente    | M        |
+| `/api/plans/[id]/sessions/[sid]`                 | PATCH/DELETE   | Editar sesión individual del plan | M        |
+| `/api/plans/[id]/sessions/[sid]/exercises/[eid]` | PATCH/DELETE   | Editar ejercicio individual       | M        |
+| `/api/notifications`                             | GET/POST/PATCH | Sistema de notificaciones         | M        |
+| `/api/notifications/mark-read`                   | POST           | Marcar leídas (bulk)              | S        |
+| `/api/coach/today`                               | GET            | "Qué revisar HOY" — inbox real    | M        |
 
 ### 3.2 Importantes (P1)
 
-| Endpoint | Método | Función | Esfuerzo |
-|---|---|---|---|
-| `/api/plans/templates` | GET/POST | Plantillas reutilizables (PPL, U/L, etc.) | M |
-| `/api/plans/assign-bulk` | POST | Asignar plan a N atletas | M |
-| `/api/progress-photos` | GET/POST/DELETE | Galería antes/después | M |
-| `/api/athletes/compare` | POST `{ ids[] }` | Comparativa entre atletas | L |
-| `/api/exports/athlete/[id]/pdf` | GET | Export PDF de progreso/plan | L |
-| `/api/cron/check-in-reminders` | POST (cron) | Recordatorios automáticos | M |
-| `/api/cron/inactive-athletes` | POST (cron) | Detectar inactividad >7d | S |
-| `/api/nutrition-logs` | GET/POST | Atleta loguea lo que comió real | M |
+| Endpoint                        | Método           | Función                                   | Esfuerzo |
+| ------------------------------- | ---------------- | ----------------------------------------- | -------- |
+| `/api/plans/templates`          | GET/POST         | Plantillas reutilizables (PPL, U/L, etc.) | M        |
+| `/api/plans/assign-bulk`        | POST             | Asignar plan a N atletas                  | M        |
+| `/api/progress-photos`          | GET/POST/DELETE  | Galería antes/después                     | M        |
+| `/api/athletes/compare`         | POST `{ ids[] }` | Comparativa entre atletas                 | L        |
+| `/api/exports/athlete/[id]/pdf` | GET              | Export PDF de progreso/plan               | L        |
+| `/api/cron/check-in-reminders`  | POST (cron)      | Recordatorios automáticos                 | M        |
+| `/api/cron/inactive-athletes`   | POST (cron)      | Detectar inactividad >7d                  | S        |
+| `/api/nutrition-logs`           | GET/POST         | Atleta loguea lo que comió real           | M        |
 
 ### 3.3 Nice to have (P2)
 
@@ -209,6 +209,7 @@ model AuditLog {
 **Hoy:** 3,700 líneas, scroll infinito, muy denso.
 
 **Acciones:**
+
 - Mantener la estructura de tabs (ya está) pero **mover el header sticky** al hacer scroll
 - Tab "Estadísticas" → dividir en sub-tabs internos: `Composición` · `Estilo de vida` · `Entrenamiento` · `Volumen muscular` · `Nutrición` (los emojis 5 secciones actuales)
 - Añadir tab nuevo: **`Fotos`** (galería de progreso)
@@ -221,6 +222,7 @@ model AuditLog {
 **Hoy:** grid de cards.
 
 **Mejoras:**
+
 - Toggle vista grid/tabla
 - Filtros: por objetivo, por estado, por fase, por adherencia
 - Búsqueda por nombre
@@ -230,6 +232,7 @@ model AuditLog {
 ### 5.4 Mensajes (`/coach/messages`)
 
 **Mejoras:**
+
 - Indicador "escribiendo..." (tipo WhatsApp)
 - Búsqueda en historial
 - Responder con archivo (foto/PDF)
@@ -241,6 +244,7 @@ model AuditLog {
 **Hoy:** solo CSV import.
 
 **Crear:** `/coach/plans/new` — wizard:
+
 1. Datos del plan (nombre, fase, semanas)
 2. Definir sesiones (drag & drop opcional)
 3. Para cada sesión: ejercicios + sets/reps/RIR/descanso
@@ -252,32 +256,38 @@ model AuditLog {
 ## 6. UX del atleta
 
 ### 6.1 Plan actual (`/athlete/plan`)
+
 - Marcar sesión completa (checkbox)
 - Ver vídeo demo del ejercicio (si existe)
 - "Iniciar sesión" → lleva a `/athlete/training-log` precargado
 
 ### 6.2 Training log (`/athlete/training-log`)
+
 - **Bug fix:** leer peso del athlete profile, no hardcodear
 - Histórico del último set por ejercicio (placeholder con valores anteriores)
 - Auto-sugerencia de carga (basado en RIR previo)
 - Vídeo de técnica accesible desde el ejercicio
 
 ### 6.3 Check-in (`/athlete/check-in`)
+
 - Ya tiene los campos físicos arreglados ✓
 - **Faltante:** sección "Feedback de tu coach" mostrando coachNote del último check-in respondido
 - Sugerencia: "última vez te pesabas 78.5 kg" como hint
 
 ### 6.4 Daily log (`/athlete/daily-log`)
+
 - Sparkline más grande (h-32 mín)
 - Indicador de "racha" (días consecutivos logueando)
 - Quick log desde móvil (botones grandes)
 
 ### 6.5 Nutrition (`/athlete/nutrition`)
+
 - Logging de comidas reales vs plan (compliance %)
 - Foto de plato (`POST /api/nutrition-logs` con imagen)
 - Cálculo automático calorías/macros si selecciona del catálogo
 
 ### 6.6 Fotos de progreso — NUEVO
+
 - `/athlete/progress` — tab o página
 - Subir foto (front/back/side/posed/relaxed)
 - Comparativa lado a lado de 2 fechas
@@ -288,6 +298,7 @@ model AuditLog {
 ## 7. Sistema de notificaciones (P0)
 
 **Componentes:**
+
 1. **Backend:** modelo `Notification` + API + emisor central
 2. **In-app:** campana en el header con dropdown (badge con N sin leer)
 3. **Email:** opcional vía Resend / SES
@@ -295,16 +306,16 @@ model AuditLog {
 
 **Triggers automáticos:**
 
-| Evento | Notifica a | Tipo |
-|---|---|---|
-| Atleta hace check-in | Coach | `CHECK_IN_RESPONDED` |
-| Coach añade nota | Atleta | `COACH_NOTE` |
-| Mensaje nuevo | Destinatario | `NEW_MESSAGE` |
-| Atleta logra PR (e1RM > histórico) | Coach + Atleta | `PR_ACHIEVED` |
-| Plan asignado | Atleta | `PLAN_ASSIGNED` |
-| 3 días sin check-in | Atleta | `REMINDER_CHECK_IN` |
-| Adherencia < 60% | Coach | `ALERT_ADHERENCE_LOW` |
-| Sueño < 6h promedio 7d | Coach | `ALERT_SLEEP_LOW` |
+| Evento                             | Notifica a     | Tipo                  |
+| ---------------------------------- | -------------- | --------------------- |
+| Atleta hace check-in               | Coach          | `CHECK_IN_RESPONDED`  |
+| Coach añade nota                   | Atleta         | `COACH_NOTE`          |
+| Mensaje nuevo                      | Destinatario   | `NEW_MESSAGE`         |
+| Atleta logra PR (e1RM > histórico) | Coach + Atleta | `PR_ACHIEVED`         |
+| Plan asignado                      | Atleta         | `PLAN_ASSIGNED`       |
+| 3 días sin check-in                | Atleta         | `REMINDER_CHECK_IN`   |
+| Adherencia < 60%                   | Coach          | `ALERT_ADHERENCE_LOW` |
+| Sueño < 6h promedio 7d             | Coach          | `ALERT_SLEEP_LOW`     |
 
 **Settings:** página `/settings/notifications` para gestionar preferencias.
 
@@ -314,25 +325,27 @@ model AuditLog {
 
 Usar Vercel Cron o `node-cron` si se hostea en VPS.
 
-| Cron | Frecuencia | Función |
-|---|---|---|
-| `check-in-reminders` | Diario 09:00 | Notificar a atletas con check-in pendiente |
-| `inactive-athletes` | Diario 10:00 | Detectar inactividad >7 días, notificar coach |
-| `weekly-digest` | Lunes 08:00 | Email semanal al coach con resumen del equipo |
-| `pr-detection` | Tras cada `session-log` | Detectar PR y notificar |
-| `plan-expiry-alert` | Diario | Avisar planes que caducan en <7 días |
+| Cron                 | Frecuencia              | Función                                       |
+| -------------------- | ----------------------- | --------------------------------------------- |
+| `check-in-reminders` | Diario 09:00            | Notificar a atletas con check-in pendiente    |
+| `inactive-athletes`  | Diario 10:00            | Detectar inactividad >7 días, notificar coach |
+| `weekly-digest`      | Lunes 08:00             | Email semanal al coach con resumen del equipo |
+| `pr-detection`       | Tras cada `session-log` | Detectar PR y notificar                       |
+| `plan-expiry-alert`  | Diario                  | Avisar planes que caducan en <7 días          |
 
 ---
 
 ## 9. Validaciones (Zod)
 
 Crear `src/lib/validators/` con esquemas reusables:
+
 - `checkInSchema` — adherencia 0-100, peso 30-250, sueño 0-14, pasos 0-50000
 - `bodyMeasurementSchema` — todos los perímetros con rangos sanos
 - `setLogSchema` — RIR 0-10, reps 0-50, peso 0-500
 - `mealSchema` — kcal/macros con sanity checks
 
 Aplicar en:
+
 1. API routes (server-side, fuente de verdad)
 2. React Hook Form (client-side, UX inmediata)
 
@@ -352,6 +365,7 @@ Aplicar en:
 ## 11. Mobile responsiveness
 
 Auditoría rápida → fixes prioritarios:
+
 - `coach/page` grid 4 col → `grid-cols-2 sm:grid-cols-4`
 - `coach/athletes/[id]` tabs scroll horizontal en móvil ✓ ya está
 - Modales fullscreen en móvil
@@ -476,15 +490,15 @@ Auditoría rápida → fixes prioritarios:
 
 ## 14. Métricas de éxito
 
-| Métrica | Hoy | Objetivo post-roadmap |
-|---|---|---|
-| Tiempo del coach por atleta/día | ? | <5 min para revisar |
-| % check-ins respondidos en 24h | ? | >80% |
-| % atletas con check-in semanal | ? | >85% |
-| Lighthouse mobile | ? | >90 |
-| Bugs P0 abiertos | 6 | 0 |
-| TODOs en código | ? | <5 |
-| Cobertura componentes UI | 12 | 25+ |
+| Métrica                         | Hoy | Objetivo post-roadmap |
+| ------------------------------- | --- | --------------------- |
+| Tiempo del coach por atleta/día | ?   | <5 min para revisar   |
+| % check-ins respondidos en 24h  | ?   | >80%                  |
+| % atletas con check-in semanal  | ?   | >85%                  |
+| Lighthouse mobile               | ?   | >90                   |
+| Bugs P0 abiertos                | 6   | 0                     |
+| TODOs en código                 | ?   | <5                    |
+| Cobertura componentes UI        | 12  | 25+                   |
 
 ---
 

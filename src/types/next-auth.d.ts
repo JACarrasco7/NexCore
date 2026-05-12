@@ -1,24 +1,24 @@
-import "next-auth";
+import 'next-auth'
 
-declare module "next-auth" {
+declare module 'next-auth' {
   interface User {
-    id: string;
-    role?: string;
-    totpEnabled?: boolean;
-    totpVerified?: boolean;
+    id: string
+    role?: string
+    totpEnabled?: boolean
+    totpVerified?: boolean
   }
 
   interface Session {
-    user: User;
+    user: User
   }
 }
 
-declare module "next-auth/jwt" {
+declare module 'next-auth/jwt' {
   interface JWT {
-    id?: string;
-    role?: string;
-    totpEnabled?: boolean;
-    totpVerified?: boolean;
-    totpCheckedAt?: number;
+    id?: string
+    role?: string
+    totpEnabled?: boolean
+    totpVerified?: boolean
+    totpCheckedAt?: number
   }
 }

@@ -18,7 +18,7 @@ try {
   // ignore
 }
 
-export function generateSecret(email: string, issuer = 'Apex Coach OS') {
+export function generateSecret(email: string, issuer = 'NEXUM') {
   const secret = authenticator.generateSecret()
   // Some export shapes of otplib may not expose `keyuri`; build otpauth URI manually
   const account = encodeURIComponent(email || 'user')
@@ -93,7 +93,7 @@ export async function verifyBackupCode(hashedCodes: string[] | null | undefined,
   for (let i = 0; i < hashedCodes.length; i++) {
     const h = hashedCodes[i]
     if (!h) continue
-     
+
     const match = await bcrypt.compare(code, h).catch(() => false)
     if (match) return { ok: true, index: i }
   }
