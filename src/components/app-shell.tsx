@@ -46,20 +46,13 @@ const COACH_NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'Comunicación',
-    icon: '💬',
-    routes: [
-      { href: '/coach/messages', label: 'Mensajes', icon: '💬' },
-      { href: '/coach/wall', label: 'Muro del equipo', icon: '📢' },
-    ],
-  },
-  {
     label: 'Team',
     icon: '👨‍💼',
     routes: [
       { href: '/coach/team', label: 'Gestión de equipo', icon: '👨‍💼' },
       { href: '/coach/team/billing', label: 'Facturación', icon: '💳' },
       { href: '/coach/service-plans', label: 'Planes de servicio', icon: '💎' },
+      { href: '/coach/wall', label: 'Muro del equipo', icon: '📢' },
     ],
   },
 ]
