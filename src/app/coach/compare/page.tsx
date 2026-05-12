@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { PageShell } from '@/components/layout'
 import { SectionIntro } from '@/components/section-intro'
 import { useToast } from '@/components/ui/toast'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -141,7 +142,7 @@ export default function CompareAthletesPage() {
   ]
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-4">
+    <PageShell className="max-w-5xl space-y-6 p-4">
       <SectionIntro
         eyebrow="Análisis"
         title="Comparar atletas"
@@ -308,6 +309,6 @@ export default function CompareAthletesPage() {
           </table>
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }

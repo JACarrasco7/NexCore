@@ -5,6 +5,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/components/ui/toast'
+import { PageShell } from '@/components/layout'
 import { SectionIntro } from '@/components/section-intro'
 import { ViewModeToggle } from '@/components/ui/view-mode-toggle'
 import { useServicePlans } from '@/lib/store'
@@ -201,7 +202,7 @@ export default function ServicePlansPage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-[1480px] flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
+    <PageShell>
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         title="Eliminar plan"
@@ -332,6 +333,6 @@ export default function ServicePlansPage() {
           </>
         )}
       </div>
-    </main>
+    </PageShell>
   )
 }

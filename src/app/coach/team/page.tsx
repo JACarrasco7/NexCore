@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useId, useState } from 'react'
+import { PageShell } from '@/components/layout'
 import { SectionIntro } from '@/components/section-intro'
 import { useToast } from '@/components/ui/toast'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -185,19 +186,19 @@ export default function CoachTeamPage() {
 
   if (loading) {
     return (
-      <main className="mx-auto w-full max-w-[1480px] px-6 py-6 md:px-10 lg:px-12">
+      <PageShell>
         <Skeleton className="mb-6 h-8 w-48 rounded-lg" />
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-16 rounded-2xl" />
           ))}
         </div>
-      </main>
+      </PageShell>
     )
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1480px] px-6 py-6 md:px-10 lg:px-12">
+    <PageShell>
       <div className="mb-6 flex items-center justify-between gap-4">
         <SectionIntro
           eyebrow="Coach dashboard"
@@ -457,6 +458,6 @@ export default function CoachTeamPage() {
           </div>
         </div>
       )}
-    </main>
+    </PageShell>
   )
 }

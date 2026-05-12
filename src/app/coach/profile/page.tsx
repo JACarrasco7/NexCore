@@ -3,6 +3,7 @@
 import { useId, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
+import { PageShell } from '@/components/layout'
 import { SectionIntro } from '@/components/section-intro'
 import { useToast } from '@/components/ui/toast'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -161,22 +162,22 @@ export default function CoachProfilePage() {
 
   if (loading) {
     return (
-      <main className="mx-auto w-full max-w-2xl px-6 py-8 md:px-10">
+      <PageShell className="max-w-2xl">
         <Skeleton className="mb-6 h-8 w-48 rounded-lg" />
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-20 rounded-2xl" />
           ))}
         </div>
-      </main>
+      </PageShell>
     )
   }
 
   if (!profile) {
     return (
-      <main className="mx-auto w-full max-w-2xl px-6 py-8 md:px-10">
+      <PageShell className="max-w-2xl">
         <p className="text-foreground/50">Error al cargar perfil</p>
-      </main>
+      </PageShell>
     )
   }
 
@@ -185,7 +186,7 @@ export default function CoachProfilePage() {
     : null
 
   return (
-    <main className="mx-auto w-full max-w-2xl space-y-6 px-6 py-8 md:px-10">
+    <PageShell className="max-w-2xl space-y-6">
       <SectionIntro
         eyebrow="Configuración"
         title="Tu perfil"
@@ -370,6 +371,6 @@ export default function CoachProfilePage() {
           </Link>
         </div>
       </article>
-    </main>
+    </PageShell>
   )
 }

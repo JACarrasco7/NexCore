@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { PageShell } from '@/components/layout'
 import { SectionIntro } from '@/components/section-intro'
 import { useToast } from '@/components/ui/toast'
 
@@ -457,7 +458,7 @@ export default function NewPlanPage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6">
+    <PageShell className="max-w-2xl gap-6 px-4 py-8 sm:px-6">
       <SectionIntro
         eyebrow="Planes de entrenamiento"
         title="Nuevo plan"
@@ -548,6 +549,6 @@ export default function NewPlanPage() {
           </button>
         )}
       </div>
-    </main>
+    </PageShell>
   )
 }
