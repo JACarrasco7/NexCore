@@ -33,7 +33,7 @@ const COACH_NAV_GROUPS: NavGroup[] = [
     label: 'Entrenamiento',
     icon: '🏋️',
     routes: [
-      { href: '/coach/service-plans', label: 'Planes de servicio', icon: '💎' },
+      { href: '/coach/plans/new', label: 'Crear plan', icon: '✍️' },
       { href: '/coach/import-lab', label: 'Importar rutinas (CSV)', icon: '📥' },
     ],
   },
@@ -59,6 +59,7 @@ const COACH_NAV_GROUPS: NavGroup[] = [
     routes: [
       { href: '/coach/team', label: 'Gestión de equipo', icon: '👨‍💼' },
       { href: '/coach/team/billing', label: 'Facturación', icon: '💳' },
+      { href: '/coach/service-plans', label: 'Planes de servicio', icon: '💎' },
     ],
   },
 ]
