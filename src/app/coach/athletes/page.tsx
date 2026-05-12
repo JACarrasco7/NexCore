@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Modal } from '@/components/ui/modal'
 import { useToast } from '@/components/ui/toast'
 import { ViewModeToggle } from '@/components/ui/view-mode-toggle'
+import { PageShell, PageHeader } from '@/components/layout'
 import { useAthletes } from '@/lib/store'
 import { useCoachMe } from '@/lib/use-coach-me'
 import type { AthleteProfile } from '@/lib/domain'
@@ -177,27 +178,26 @@ export default function AthletesPage() {
         />
       )}
 
-      <div className="mx-auto w-full max-w-[1480px] px-6 py-6 md:px-10 lg:px-12">
-        {/* Header */}
-        <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-          <div>
-            <p className="text-foreground/40 text-xs tracking-widest uppercase">Coach dashboard</p>
-            <h1 className="mt-1 text-2xl font-bold">Atletas</h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <ViewModeToggle
-              value={viewMode}
-              onChange={setViewMode}
-              storageKey="athletes-view-mode"
-            />
-            <Link
-              href="/athlete/onboarding"
-              className="bg-accent hover:bg-accent-strong shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition"
-            >
-              + Alta atleta
-            </Link>
-          </div>
-        </div>
+      <PageShell>
+        <PageHeader
+          eyebrow="Coach dashboard"
+          title="Atletas"
+          actions={
+            <>
+              <ViewModeToggle
+                value={viewMode}
+                onChange={setViewMode}
+                storageKey="athletes-view-mode"
+              />
+              <Link
+                href="/athlete/onboarding"
+                className="bg-accent hover:bg-accent-strong shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition"
+              >
+                + Alta atleta
+              </Link>
+            </>
+          }
+        />
 
         {/* Split layout: aside filtros + main lista */}
         <div className="grid gap-5 xl:grid-cols-[260px_minmax(0,1fr)] xl:items-start">
@@ -390,7 +390,7 @@ export default function AthletesPage() {
             )}
           </div>
         </div>
-      </div>
+      </PageShell>
     </>
   )
 }

@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/components/ui/toast'
 import { useNutritionPlans } from '@/lib/store'
 import { parseNutritionCsv } from '@/lib/food-csv'
-import { SplitLayout } from '@/components/layout/split-layout'
+import { SplitLayout, PageShell, PageHeader } from '@/components/layout'
 import type { Meal, MealFood, NutritionPlan } from '@/lib/domain'
 
 // ── Types for the form ────────────────────────────────────────────────────────
@@ -1184,14 +1184,11 @@ function NutritionEditorWithAside() {
 
 export default function CoachNutritionPage() {
   return (
-    <div className="mx-auto w-full max-w-[1480px] px-6 py-6 md:px-10 lg:px-12">
-      <div className="mb-6">
-        <p className="text-foreground/40 text-xs tracking-widest uppercase">Coach dashboard</p>
-        <h1 className="mt-1 text-2xl font-bold">Nutrición</h1>
-      </div>
+    <PageShell>
+      <PageHeader eyebrow="Coach dashboard" title="Nutrición" />
       <Suspense fallback={<Skeleton className="h-40" />}>
         <NutritionEditorWithAside />
       </Suspense>
-    </div>
+    </PageShell>
   )
 }

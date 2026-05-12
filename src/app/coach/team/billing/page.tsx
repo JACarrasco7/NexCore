@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { PageShell, PageHeader } from '@/components/layout'
+import { AlertBanner } from '@/components/ui/alert-banner'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface Team {
   id: string
@@ -206,38 +209,31 @@ export default function TeamBillingPage() {
   }
 
   if (loading) {
-    return <div className="p-6">Cargando...</div>
+    return (
+      <PageShell>
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-40 w-full" />
+      </PageShell>
+    )
   }
 
   const canManageBilling = teams.find((t) => t.id === selectedTeamId)?.role === 'ADMIN'
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-text-strong text-3xl font-bold">Facturación del equipo</h1>
-          <p className="text-text-weak mt-1">Gestiona los planes de facturación</p>
-        </div>
-        <Link href="/coach/team" className="text-accent hover:underline">
-          ← Volver
-        </Link>
-      </div>
+    <PageShell>
+      <PageHeader
+        eyebrow="Team"
+        title="Facturación del equipo"
+        description="Gestiona los planes de facturación"
+        back={{ href: '/coach/team', label: 'Volver' }}
+      />
 
-      {/* Messages */}
-      {error && (
-        <div className="rounded-2xl border border-red-700 bg-red-950 p-4 text-red-100">{error}</div>
-      )}
-      {success && (
-        <div className="rounded-2xl border border-green-700 bg-green-950 p-4 text-green-100">
-          {success}
-        </div>
-      )}
+      {error && <AlertBanner variant="error">{error}</AlertBanner>}
+      {success && <AlertBanner variant="success">{success}</AlertBanner>}
 
-      {/* Team selector */}
       {teams.length > 1 && (
         <div>
-          <label className="text-text-weak mb-2 block text-sm font-medium">Equipo</label>
+          <label className="text-foreground/60 mb-2 block text-sm font-medium">Equipo</label>
           <select
             value={selectedTeamId || ''}
             onChange={(e) => handleTeamChange(e.target.value)}
@@ -252,22 +248,20 @@ export default function TeamBillingPage() {
         </div>
       )}
 
-      {/* Permiso requerido */}
       {!canManageBilling && (
-        <div className="rounded-2xl border border-yellow-700 bg-yellow-950 p-4 text-yellow-100">
+        <AlertBanner variant="warning">
           No tienes permisos para gestionar la facturación de este equipo.
-        </div>
+        </AlertBanner>
       )}
 
-      {/* Formulario */}
       {showForm && canManageBilling && (
         <div className="border-line bg-surface rounded-2xl border p-6">
-          <h2 className="text-text-strong mb-4 text-lg font-semibold">
+          <h2 className="text-foreground mb-4 text-lg font-semibold">
             {editingId ? 'Editar plan' : 'Nuevo plan'}
           </h2>
           <form onSubmit={handleSavePlan} className="space-y-4">
             <div>
-              <label className="text-text-weak mb-2 block text-sm font-medium">
+              <label className="text-foreground/60 mb-2 block text-sm font-medium">
                 Nombre del plan *
               </label>
               <input
@@ -281,7 +275,9 @@ export default function TeamBillingPage() {
             </div>
 
             <div>
-              <label className="text-text-weak mb-2 block text-sm font-medium">Descripción</label>
+              <label className="text-foreground/60 mb-2 block text-sm font-medium">
+                Descripción
+              </label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -293,7 +289,9 @@ export default function TeamBillingPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-text-weak mb-2 block text-sm font-medium">Precio *</label>
+                <label className="text-foreground/60 mb-2 block text-sm font-medium">
+                  Precio *
+                </label>
                 <input
                   type="number"
                   value={formData.price}
@@ -311,7 +309,7 @@ export default function TeamBillingPage() {
               </div>
 
               <div>
-                <label className="text-text-weak mb-2 block text-sm font-medium">Moneda</label>
+                <label className="text-foreground/60 mb-2 block text-sm font-medium">Moneda</label>
                 <select
                   value={formData.currency}
                   onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
@@ -326,7 +324,7 @@ export default function TeamBillingPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-text-weak mb-2 block text-sm font-medium">
+                <label className="text-foreground/60 mb-2 block text-sm font-medium">
                   Ciclo de facturación *
                 </label>
                 <select
@@ -344,7 +342,7 @@ export default function TeamBillingPage() {
               </div>
 
               <div>
-                <label className="text-text-weak mb-2 block text-sm font-medium">
+                <label className="text-foreground/60 mb-2 block text-sm font-medium">
                   Máximo de atletas
                 </label>
                 <input
@@ -368,7 +366,7 @@ export default function TeamBillingPage() {
               <button
                 type="button"
                 onClick={handleCancel}
-                className="border-line bg-surface-strong text-text-strong hover:bg-surface rounded-2xl border px-4 py-2.5 text-sm font-medium"
+                className="border-line bg-surface-strong text-foreground hover:bg-background rounded-2xl border px-4 py-2.5 text-sm font-medium"
               >
                 Cancelar
               </button>
@@ -389,7 +387,7 @@ export default function TeamBillingPage() {
         )}
 
         {billingPlans.length === 0 ? (
-          <div className="border-line bg-surface text-text-weak rounded-2xl border p-6 text-center">
+          <div className="border-line bg-surface text-foreground/50 rounded-2xl border p-6 text-center">
             {canManageBilling
               ? 'Sin planes de facturación. Crea uno para comenzar.'
               : 'Sin planes de facturación.'}
@@ -401,26 +399,26 @@ export default function TeamBillingPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
-                      <h3 className="text-text-strong text-lg font-semibold">{plan.planName}</h3>
+                      <h3 className="text-foreground text-lg font-semibold">{plan.planName}</h3>
                       {!plan.isActive && (
-                        <span className="rounded bg-red-950 px-2 py-1 text-xs font-medium text-red-100">
+                        <span className="border-danger/30 bg-danger/10 text-danger rounded-full border px-2 py-0.5 text-xs">
                           Inactivo
                         </span>
                       )}
                     </div>
                     {plan.description && (
-                      <p className="text-text-weak mt-2 text-sm">{plan.description}</p>
+                      <p className="text-foreground/60 mt-2 text-sm">{plan.description}</p>
                     )}
                     <div className="mt-3 flex gap-6 text-sm">
                       <div>
-                        <span className="text-text-weak">Precio:</span>
-                        <span className="text-text-strong ml-2 font-medium">
+                        <span className="text-foreground/60">Precio:</span>
+                        <span className="text-foreground ml-2 font-medium">
                           {plan.price.toFixed(2)} {plan.currency}
                         </span>
                       </div>
                       <div>
-                        <span className="text-text-weak">Ciclo:</span>
-                        <span className="text-text-strong ml-2 font-medium">
+                        <span className="text-foreground/60">Ciclo:</span>
+                        <span className="text-foreground ml-2 font-medium">
                           {plan.billingCycle === 'MONTHLY'
                             ? 'Mensual'
                             : plan.billingCycle === 'YEARLY'
@@ -430,8 +428,8 @@ export default function TeamBillingPage() {
                       </div>
                       {plan.maxAthletes && (
                         <div>
-                          <span className="text-text-weak">Atletas max:</span>
-                          <span className="text-text-strong ml-2 font-medium">
+                          <span className="text-foreground/60">Atletas max:</span>
+                          <span className="text-foreground ml-2 font-medium">
                             {plan.maxAthletes}
                           </span>
                         </div>
@@ -449,7 +447,7 @@ export default function TeamBillingPage() {
                       </button>
                       <button
                         onClick={() => handleDeletePlan(plan.id)}
-                        className="rounded-lg bg-red-950 px-3 py-1.5 text-xs font-medium text-red-100 hover:bg-red-900"
+                        className="border-danger/30 text-danger hover:bg-danger/10 rounded-lg border px-3 py-1.5 text-xs font-medium transition"
                       >
                         Eliminar
                       </button>
@@ -461,6 +459,6 @@ export default function TeamBillingPage() {
           </div>
         )}
       </div>
-    </div>
+    </PageShell>
   )
 }

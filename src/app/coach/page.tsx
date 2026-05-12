@@ -1,6 +1,7 @@
 ﻿import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { StatCard } from '@/components/stat-card'
+import { PageShell, PageHeader } from '@/components/layout'
 import { auth } from '@/auth'
 import { getCoachToday } from '@/lib/coach-today'
 
@@ -47,19 +48,18 @@ export default async function CoachPage() {
   ]
 
   return (
-    <div className="mx-auto w-full max-w-[1480px] space-y-6 px-6 py-6 md:px-10 lg:px-12">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-foreground/40 text-xs tracking-widest uppercase">Dashboard coach</p>
-          <h1 className="mt-1 text-2xl font-bold">{today.coach.displayName}</h1>
-        </div>
-        <div className="text-foreground/40 flex items-center gap-2 text-xs">
-          <span>{today.stats.unreadNotifications} notif.</span>
-          <span className="text-line">·</span>
-          <span>{today.stats.unreadMessages} mensajes</span>
-        </div>
-      </div>
+    <PageShell>
+      <PageHeader
+        eyebrow="Dashboard coach"
+        title={today.coach.displayName}
+        actions={
+          <div className="text-foreground/40 flex items-center gap-2 text-xs">
+            <span>{today.stats.unreadNotifications} notif.</span>
+            <span className="text-line">·</span>
+            <span>{today.stats.unreadMessages} mensajes</span>
+          </div>
+        }
+      />
 
       {/* KPIs */}
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -307,6 +307,6 @@ export default async function CoachPage() {
           </div>
         </aside>
       </div>
-    </div>
+    </PageShell>
   )
 }
