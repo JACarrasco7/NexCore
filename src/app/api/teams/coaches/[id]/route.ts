@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
+import { parseJsonOrError } from '@/lib/api/json-parser'
+import { unauthorized, forbidden, badRequest, notFound } from '@/lib/api/error-response'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,25 +10,25 @@ export const dynamic = 'force-dynamic'
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: userId } = await params
   const session = await auth()
-
   if (!session?.user?.id) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    return unauthorized('No autorizado')
   }
 
   const role = (session.user as { role?: string }).role ?? 'ATHLETE'
   if (role !== 'COACH' && role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+    return forbidden('Sin acceso')
   }
 
-  const body = await request.json().catch(() => ({}))
-  const { teamId, newRole } = body
+  const parsed = await parseJsonOrError(request)
+  if (!parsed.ok) return parsed.error
+  const { teamId, newRole } = parsed.data as any
 
   if (!teamId || !newRole) {
-    return NextResponse.json({ error: 'teamId y newRole requeridos' }, { status: 400 })
+    return badRequest('teamId y newRole requeridos')
   }
 
   if (!['ADMIN', 'MEMBER'].includes(newRole)) {
-    return NextResponse.json({ error: 'newRole debe ser ADMIN o MEMBER' }, { status: 400 })
+    return badRequest('newRole debe ser ADMIN o MEMBER')
   }
 
   // Solo ADMIN puede cambiar roles, o COACH que es ADMIN de su equipo
@@ -63,7 +65,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   })
 
   if (!membership) {
-    return NextResponse.json({ error: 'Coach no encontrado en el equipo' }, { status: 404 })
+    return notFound('Coach no encontrado en el equipo')
   }
 
   // Actualizar rol
@@ -80,19 +82,19 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const { id: userId } = await params
   const session = await auth()
   if (!session?.user?.id) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    return unauthorized('No autorizado')
   }
 
   const role = (session.user as { role?: string }).role ?? 'ATHLETE'
   if (role !== 'COACH' && role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+    return forbidden('Sin acceso')
   }
 
   const { searchParams } = new URL(request.url)
   const teamId = searchParams.get('teamId')
 
   if (!teamId) {
-    return NextResponse.json({ error: 'teamId requerido' }, { status: 400 })
+    return badRequest('teamId requerido')
   }
 
   // Solo ADMIN puede remover, o COACH que es ADMIN de su equipo
@@ -129,7 +131,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   })
 
   if (!membership) {
-    return NextResponse.json({ error: 'Coach no encontrado en el equipo' }, { status: 404 })
+    return notFound('Coach no encontrado en el equipo')
   }
 
   // Marcar como inactivo (soft delete)

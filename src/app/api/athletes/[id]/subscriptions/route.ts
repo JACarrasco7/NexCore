@@ -1,19 +1,21 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
+import { parseJsonOrError } from '@/lib/api/json-parser'
+import { unauthorized, forbidden, badRequest, notFound } from '@/lib/api/error-response'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/athletes/[id]/subscriptions
- * Listar suscripciones de un atleta
+ * Listar suscripciones de un atleta a TeamBillingPlans
  */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const session = await auth()
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    return unauthorized('No autorizado')
   }
 
   // Verificar que el atleta existe y que el usuario tiene acceso
@@ -23,7 +25,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   })
 
   if (!athlete) {
-    return NextResponse.json({ error: 'Atleta no encontrado' }, { status: 404 })
+    return notFound('Atleta no encontrado')
   }
 
   const role = (session.user as { role?: string }).role
@@ -43,21 +45,32 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     })
 
     if (!membership) {
-      return NextResponse.json({ error: 'Sin acceso a este atleta' }, { status: 403 })
+      return forbidden('Sin acceso a este atleta')
     }
   } else if (role !== 'ADMIN' && role !== 'ATHLETE') {
-    return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+    return forbidden('Sin acceso')
   }
 
   // Si es ATHLETE, verificar que es su propio perfil
   if (role === 'ATHLETE' && session.user.id !== athlete.userId) {
-    return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+    return forbidden('Sin acceso')
   }
 
   // Obtener suscripciones
   const subscriptions = await prisma.athleteSubscription.findMany({
     where: { athleteId: id },
-    include: { servicePlan: true },
+    include: {
+      teamBillingPlan: {
+        select: {
+          id: true,
+          planName: true,
+          description: true,
+          price: true,
+          currency: true,
+          billingCycle: true,
+        },
+      },
+    },
     orderBy: { createdAt: 'desc' },
   })
 
@@ -68,11 +81,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       startDate: sub.startDate,
       endDate: sub.endDate,
       cancelledAt: sub.cancelledAt,
-      priceEurPaid: sub.priceEurPaid,
-      notes: sub.notes,
-      servicePlan: {
-        id: sub.servicePlan.id,
-        name: sub.servicePlan.name,
+      trialEndsAt: sub.trialEndsAt,
+      paymentMethod: sub.paymentMethod,
+      manualRenewal: sub.manualRenewal,
+      teamBillingPlan: {
+        id: sub.teamBillingPlan.id,
+        planName: sub.teamBillingPlan.planName,
+        description: sub.teamBillingPlan.description,
+        price: sub.teamBillingPlan.price,
+        currency: sub.teamBillingPlan.currency,
+        billingCycle: sub.teamBillingPlan.billingCycle,
       },
     }))
   )
@@ -80,125 +98,124 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 /**
  * POST /api/athletes/[id]/subscriptions
- * Asignar un plan de servicio a un atleta
+ * Asignar un plan de equipo a un atleta
  * (Coach del equipo o ADMIN)
+ * @deprecated Use POST /teams/[teamId]/athlete-subscriptions instead
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const session = await auth()
-
   if (!session?.user?.id) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    return unauthorized('No autorizado')
   }
 
   const role = (session.user as { role?: string }).role
   if (role !== 'COACH' && role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+    return forbidden('Sin acceso')
   }
 
-  const body = await request.json().catch(() => ({}))
-  const { servicePlanId, startDate, priceEurPaid, notes } = body
+  const parsed = await parseJsonOrError(request)
+  if (!parsed.ok) return parsed.error
+  const { teamBillingPlanId } = parsed.data as any
 
-  if (!servicePlanId) {
-    return NextResponse.json({ error: 'servicePlanId es requerido' }, { status: 400 })
+  if (!teamBillingPlanId) {
+    return badRequest('teamBillingPlanId requerido')
   }
 
-  // Obtener atleta
+  // Verificar que el atleta existe
   const athlete = await prisma.athlete.findUnique({
     where: { id },
-    include: { team: { select: { id: true } } },
+    include: { team: true },
   })
 
   if (!athlete) {
     return NextResponse.json({ error: 'Atleta no encontrado' }, { status: 404 })
   }
 
-  // Validar acceso
-  if (role === 'COACH') {
-    if (!athlete.teamId) {
-      return NextResponse.json({ error: 'Atleta no tiene equipo asignado' }, { status: 403 })
-    }
-
-    const membership = await prisma.teamUserMembership.findFirst({
-      where: {
-        teamId: athlete.teamId,
-        userId: session.user.id,
-        isActive: true,
-      },
-    })
-
-    if (!membership) {
-      return NextResponse.json({ error: 'Sin acceso a este atleta' }, { status: 403 })
-    }
+  if (!athlete.teamId) {
+    return NextResponse.json({ error: 'Atleta no tiene equipo asignado' }, { status: 403 })
   }
 
-  // Obtener plan de servicio
-  const servicePlan = await prisma.servicePlan.findUnique({
-    where: { id: servicePlanId },
+  // Verificar que el usuario es coach del equipo
+  const membership = await prisma.teamUserMembership.findFirst({
+    where: {
+      teamId: athlete.teamId,
+      userId: session.user.id,
+      isActive: true,
+    },
   })
 
-  if (!servicePlan) {
-    return NextResponse.json({ error: 'Plan de servicio no encontrado' }, { status: 404 })
+  if (!membership) {
+    return NextResponse.json({ error: 'Sin acceso a este atleta' }, { status: 403 })
   }
 
-  // Validar que el plan pertenece al coach (si es coach)
-  if (role === 'COACH') {
-    const coach = await prisma.coach.findUnique({
-      where: { userId: session.user.id },
-      select: { id: true },
-    })
-
-    if (!coach || servicePlan.coachId !== coach.id) {
-      return NextResponse.json({ error: 'Solo puedes asignar tus propios planes' }, { status: 403 })
-    }
-  }
-
-  // Verificar que no hay otra suscripción activa al mismo plan
-  const existing = await prisma.athleteSubscription.findFirst({
+  // Verificar que el plan existe y pertenece al equipo
+  const plan = await prisma.teamBillingPlan.findFirst({
     where: {
-      athleteId: id,
-      servicePlanId: servicePlanId,
-      status: 'ACTIVE',
+      id: teamBillingPlanId,
+      teamId: athlete.teamId,
+    },
+  })
+
+  if (!plan) {
+    return NextResponse.json({ error: 'Plan no encontrado' }, { status: 404 })
+  }
+
+  // Verificar que no existe suscripción activa
+  const existing = await prisma.athleteSubscription.findUnique({
+    where: {
+      athleteId_teamBillingPlanId: {
+        athleteId: id,
+        teamBillingPlanId,
+      },
     },
   })
 
   if (existing) {
-    return NextResponse.json(
-      { error: 'Este atleta ya tiene una suscripción activa a este plan' },
-      { status: 409 }
-    )
+    return NextResponse.json({ error: 'El atleta ya está asignado a este plan' }, { status: 409 })
   }
 
-  try {
-    const subscription = await prisma.athleteSubscription.create({
-      data: {
-        athleteId: id,
-        servicePlanId: servicePlanId,
+  // Validar maxAthletes
+  if (plan.maxAthletes) {
+    const activeCount = await prisma.athleteSubscription.count({
+      where: {
+        teamBillingPlanId,
         status: 'ACTIVE',
-        startDate: startDate ? new Date(startDate) : new Date(),
-        priceEurPaid: typeof priceEurPaid === 'number' ? priceEurPaid : 0,
-        notes: notes ? String(notes).trim() : null,
       },
-      include: { servicePlan: true },
     })
 
-    return NextResponse.json(
-      {
-        id: subscription.id,
-        status: subscription.status,
-        startDate: subscription.startDate,
-        endDate: subscription.endDate,
-        priceEurPaid: subscription.priceEurPaid,
-        notes: subscription.notes,
-        servicePlan: {
-          id: subscription.servicePlan.id,
-          name: subscription.servicePlan.name,
+    if (activeCount >= plan.maxAthletes) {
+      return NextResponse.json(
+        { error: `El plan ha alcanzado el máximo de ${plan.maxAthletes} atletas` },
+        { status: 422 }
+      )
+    }
+  }
+
+  // Crear suscripción con trial de 30 días
+  const now = new Date()
+  const trialEndsAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+
+  const subscription = await prisma.athleteSubscription.create({
+    data: {
+      athleteId: id,
+      teamBillingPlanId,
+      status: 'ACTIVE',
+      trialEndsAt,
+      paymentMethod: 'MANUAL',
+      manualRenewal: false,
+    },
+    include: {
+      teamBillingPlan: {
+        select: {
+          id: true,
+          planName: true,
+          price: true,
+          currency: true,
         },
       },
-      { status: 201 }
-    )
-  } catch (err: any) {
-    console.error('[athlete-subscriptions-create]', err)
-    return NextResponse.json({ error: 'Error creando suscripción' }, { status: 500 })
-  }
+    },
+  })
+
+  return NextResponse.json(subscription, { status: 201 })
 }

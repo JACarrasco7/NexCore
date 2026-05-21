@@ -3,26 +3,28 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { nutritionTargetSchema } from "@/lib/validators";
+import { parseJsonOrError } from '@/lib/api/json-parser'
+import { unauthorized, badRequest, forbidden, notFound } from '@/lib/api/error-response'
 
 export const dynamic = "force-dynamic";
 
 async function resolveAthleteAccess(athleteId: string | null, userId: string, role: string | undefined) {
   if (role === "ATHLETE") {
     const athlete = await prisma.athlete.findUnique({ where: { userId }, select: { id: true, coachId: true } });
-    if (!athlete) return { error: NextResponse.json({ error: "Atleta no encontrado" }, { status: 404 }) };
+    if (!athlete) return { error: notFound('Atleta no encontrado') };
     return { athleteId: athlete.id, coachId: athlete.coachId };
   }
 
-  if (!athleteId) return { error: NextResponse.json({ error: "athleteId requerido" }, { status: 400 }) };
+  if (!athleteId) return { error: badRequest('athleteId requerido') };
 
   const athlete = await prisma.athlete.findUnique({ where: { id: athleteId }, select: { id: true, coachId: true } });
-  if (!athlete) return { error: NextResponse.json({ error: "Atleta no encontrado" }, { status: 404 }) };
+  if (!athlete) return { error: notFound('Atleta no encontrado') };
 
   if (role === "ADMIN") return { athleteId: athlete.id, coachId: athlete.coachId };
 
   const coach = await prisma.coach.findUnique({ where: { userId }, select: { id: true } });
   if (!coach || coach.id !== athlete.coachId) {
-    return { error: NextResponse.json({ error: "Sin acceso" }, { status: 403 }) };
+    return { error: forbidden('Sin acceso') };
   }
 
   return { athleteId: athlete.id, coachId: coach.id };
@@ -30,7 +32,7 @@ async function resolveAthleteAccess(athleteId: string | null, userId: string, ro
 
 export async function GET(request: Request) {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  if (!session?.user?.id) return unauthorized('No autenticado')
 
   const athleteId = new URL(request.url).searchParams.get("athleteId");
   const role = (session.user as { role?: string }).role;
@@ -80,13 +82,14 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  if (!session?.user?.id) return unauthorized('No autenticado')
 
   const role = (session.user as { role?: string }).role;
-  const body = await request.json().catch(() => ({}));
-  const parsed = nutritionTargetSchema.safeParse(body);
+  const parsedBody = await parseJsonOrError(request)
+  if (!parsedBody.ok) return parsedBody.error
+  const parsed = nutritionTargetSchema.safeParse(parsedBody.data);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Objetivos inválidos", details: parsed.error.flatten().fieldErrors }, { status: 422 });
+    return badRequest('Objetivos inválidos', parsed.error.flatten().fieldErrors)
   }
 
   const context = await resolveAthleteAccess(parsed.data.athleteId ?? null, session.user.id, role);

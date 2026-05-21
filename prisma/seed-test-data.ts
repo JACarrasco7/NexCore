@@ -116,7 +116,7 @@ const ATHLETE_PROFILES: Record<string, {
 
 async function seedAthlete(
   athleteId: string,
-  coachId: string,
+  coachId: string | null,
   athleteName: string,
   weekOffset = 0 // para escalonar fechas entre atletas
 ) {

@@ -32,26 +32,30 @@ export async function POST(req: NextRequest) {
 
     const existing = await prisma.coach.findUnique({ where: { userId: user.id } })
 
-    const coach = existing
-      ? await prisma.coach.update({
-          where: { id: existing.id },
-          data: {
-            displayName: displayName.trim(),
-            bio: bio?.trim() || null,
-          },
-        })
-      : await prisma.coach.create({
-          data: {
-            userId: user.id,
-            displayName: displayName.trim(),
-            bio: bio?.trim() || null,
-            trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 días
-          },
-        })
+    const coach = await prisma.$transaction(async (tx) => {
+      const coachData = existing
+        ? await tx.coach.update({
+            where: { id: existing.id },
+            data: {
+              displayName: displayName.trim(),
+              bio: bio?.trim() || null,
+            },
+          })
+        : await tx.coach.create({
+            data: {
+              userId: user.id,
+              displayName: displayName.trim(),
+              bio: bio?.trim() || null,
+              trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 días
+            },
+          })
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { name: displayName.trim() },
+      await tx.user.update({
+        where: { id: user.id },
+        data: { name: displayName.trim() },
+      })
+
+      return coachData
     })
 
     return NextResponse.json({

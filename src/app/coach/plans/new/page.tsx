@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { PageShell } from '@/components/layout'
 import { SectionIntro } from '@/components/section-intro'
 import { useToast } from '@/components/ui/toast'
+import { ExerciseSearch } from '@/components/exercise-search'
+import { apiFetch } from '@/lib/store'
 
 // ─── tipos locales ────────────────────────────────────────────────────────────
 
@@ -23,7 +25,6 @@ type LocalExercise = {
 
 type LocalSession = {
   name: string
-  block: string
   exercises: LocalExercise[]
 }
 
@@ -31,6 +32,7 @@ type PlanDraft = {
   title: string
   weekLabel: string
   athleteId: string
+  block: string
   sessions: LocalSession[]
 }
 
@@ -67,6 +69,17 @@ function Step1({
           onChange={(e) => onChange({ weekLabel: e.target.value })}
         />
       </div>
+      <div>
+        <label className="text-foreground/80 mb-1.5 block text-sm font-medium">
+          Bloque (aplicado a todas las sesiones)
+        </label>
+        <input
+          className="border-line bg-surface-strong focus:ring-accent w-full rounded-2xl border px-4 py-3 text-sm focus:ring-1 focus:outline-none"
+          placeholder="Ej. Bloque A"
+          value={draft.block}
+          onChange={(e) => onChange({ block: e.target.value })}
+        />
+      </div>
     </div>
   )
 }
@@ -83,12 +96,12 @@ function ExerciseRow({
   return (
     <div className="border-line bg-surface rounded-3xl border p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <input
-          className="border-line bg-surface-strong focus:ring-accent flex-1 rounded-xl border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
-          placeholder="Nombre del ejercicio"
-          value={ex.exercise}
-          onChange={(e) => onChange({ exercise: e.target.value })}
-        />
+        <div className="flex-1">
+          <ExerciseSearch
+            onSelect={(name) => onChange({ exercise: name })}
+            showFavorites={false}
+          />
+        </div>
         <button
           type="button"
           onClick={onRemove}
@@ -207,7 +220,7 @@ function Step2({
     onChange({
       sessions: [
         ...draft.sessions,
-        { name: `Sesion ${draft.sessions.length + 1}`, block: 'Bloque A', exercises: [] },
+        { name: `Sesion ${draft.sessions.length + 1}`, exercises: [] },
       ],
     })
   }
@@ -256,18 +269,12 @@ function Step2({
       )}
       {draft.sessions.map((s, si) => (
         <div key={si} className="border-line bg-surface-strong rounded-3xl border p-5">
-          <div className="mb-4 flex items-center gap-3">
+            <div className="mb-4 flex items-center gap-3">
             <input
               className="border-line bg-surface focus:ring-accent flex-1 rounded-xl border px-3 py-2 text-sm font-semibold focus:ring-1 focus:outline-none"
               value={s.name}
               onChange={(e) => updateSession(si, { name: e.target.value })}
               placeholder="Nombre de la sesion"
-            />
-            <input
-              className="border-line bg-surface focus:ring-accent w-32 rounded-xl border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
-              value={s.block}
-              onChange={(e) => updateSession(si, { block: e.target.value })}
-              placeholder="Bloque"
             />
             <button
               type="button"
@@ -358,6 +365,7 @@ const EMPTY_DRAFT: PlanDraft = {
   title: '',
   weekLabel: 'Semana 1',
   athleteId: '',
+  block: 'Bloque A',
   sessions: [],
 }
 
@@ -380,17 +388,14 @@ export default function NewPlanPage() {
   async function goToStep3() {
     if (!athletesLoaded) {
       try {
-        const res = await fetch('/api/athletes')
-        if (res.ok) {
-          const data = await res.json()
-          const arr = Array.isArray(data) ? data : (data?.athletes ?? [])
-          setAthletesCache(
-            (arr as { id: string; fullName?: string; name?: string }[]).map((a) => ({
-              id: a.id,
-              fullName: a.fullName ?? a.name ?? a.id,
-            }))
-          )
-        }
+        const data = await apiFetch<any>('/api/athletes')
+        const arr = Array.isArray(data) ? data : (data?.items ?? data?.athletes ?? [])
+        setAthletesCache(
+          (arr as { id: string; fullName?: string; name?: string }[]).map((a) => ({
+            id: a.id,
+            fullName: a.fullName ?? a.name ?? a.id,
+          }))
+        )
       } catch {
         // sin problema
       }
@@ -423,6 +428,7 @@ export default function NewPlanPage() {
           athleteId: draft.athleteId,
           title: draft.title,
           weekLabel: draft.weekLabel,
+          block: draft.block,
           sessions: draft.sessions,
         }),
       })
@@ -442,7 +448,7 @@ export default function NewPlanPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: templateName.trim(),
-            payload: { sessions: draft.sessions },
+            payload: { sessions: draft.sessions, block: draft.block },
           }),
         })
       }

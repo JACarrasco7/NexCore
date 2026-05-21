@@ -239,7 +239,7 @@ export default function PosingLabPage() {
 
   return (
     <main className="min-h-screen bg-background px-4 pb-10 pt-6">
-      <div className="mx-auto max-w-[1480px] space-y-4">
+      <div className="mx-auto max-w-370 space-y-4">
 
         {/* Header */}
         <div className="flex items-center gap-3">

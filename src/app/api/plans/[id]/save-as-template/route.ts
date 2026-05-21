@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { parseJsonOrError } from '@/lib/api/json-parser'
+import { unauthorized, forbidden, notFound, badRequest } from '@/lib/api/error-response'
 
 export const dynamic = "force-dynamic";
 
@@ -15,13 +17,13 @@ export async function POST(
 ) {
   const { id } = await params;
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  if (!session?.user?.id) return unauthorized('No autenticado')
 
   const coach = await prisma.coach.findUnique({
     where: { userId: session.user.id },
     select: { id: true },
   });
-  if (!coach) return NextResponse.json({ error: "No es coach" }, { status: 403 });
+  if (!coach) return forbidden('No es coach')
 
   const plan = await prisma.plan.findUnique({
     where: { id },
@@ -33,10 +35,12 @@ export async function POST(
     },
   });
 
-  if (!plan) return NextResponse.json({ error: "Plan no encontrado" }, { status: 404 });
-  if (plan.coachId !== coach.id) return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
+  if (!plan) return notFound('Plan no encontrado')
+  if (plan.coachId !== coach.id) return forbidden('Sin acceso')
 
-  const body: { name?: string; description?: string; splitType?: string } = await req.json().catch(() => ({}));
+  const parsed = await parseJsonOrError(req)
+  if (!parsed.ok) return parsed.error
+  const body: { name?: string; description?: string; splitType?: string } = parsed.data as any
   const name = body.name?.trim() || plan.title;
 
   const payload = {

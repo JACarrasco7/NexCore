@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState } from "react";
 import { SectionIntro } from "@/components/section-intro";
-import { useAthletes } from "@/lib/store";
+import { useAthletes, apiFetch, apiPost } from "@/lib/store";
 import { useCoachMe } from "@/lib/use-coach-me";
 
 type Goal = string;
@@ -81,33 +81,73 @@ export default function OnboardingPage() {
   const [consentSignature, setConsentSignature] = useState("");
 
   useEffect(() => {
-    if (!coach?.id) return;
-    Promise.all([
-      fetch("/api/teams/coaches").then((r) => (r.ok ? r.json() : null)),
-      fetch("/api/teams/catalog").then((r) => (r.ok ? r.json() : null)),
-      fetch("/api/teams/contract").then((r) => (r.ok ? r.json() : null)),
-    ])
-      .then(([coachesData, catalogData, contractData]: [{ teamId: string | null; coaches: TeamCoach[] } | null, { goals: CatalogGoal[]; phases: CatalogPhase[] } | null, { template: string } | null]) => {
-        if (coachesData) {
-          setTeamCoaches(coachesData.coaches ?? []);
-          setForm((prev) => ({
-            ...prev,
-            teamId: coachesData.teamId,
-            coachId: prev.coachId || (coachesData.coaches.find((c) => c.coachId === coach.id)?.coachId ?? coachesData.coaches[0]?.coachId ?? ""),
-          }));
+    async function load() {
+      try {
+        // Primero intentar obtener coaches (caso coach y admin con teamId)
+        let coachesData: { teamId: string | null; coaches: TeamCoach[] } | null = null
+        try {
+          coachesData = await apiFetch<{ teamId: string | null; coaches: TeamCoach[] } | null>('/api/teams/coaches').catch(() => null)
+        } catch (_) {
+          coachesData = null
         }
-        if (catalogData) {
-          const visibleGoals = (catalogData.goals ?? []).filter((g) => g.isVisible !== false);
-          if (visibleGoals.length > 0) setCatalogGoals(visibleGoals);
-          if ((catalogData.phases ?? []).length > 0) {
-            setCatalogPhases(catalogData.phases);
-            setPhaseMode("catalog");
+
+        // Si no hay coaches, intentar resolver por equipos disponibles (útil para ADMIN)
+        if (!coachesData || !Array.isArray(coachesData.coaches) || coachesData.coaches.length === 0) {
+          try {
+            const teamsRes = await apiFetch<Array<{ id: string }>>('/api/teams').catch(() => [])
+            if (Array.isArray(teamsRes) && teamsRes.length > 0) {
+              for (const t of teamsRes) {
+                try {
+                  const d = await apiFetch<{ teamId: string | null; coaches: TeamCoach[] } | null>(`/api/teams/coaches?teamId=${t.id}`).catch(() => null)
+                  if (d && Array.isArray((d as any).coaches) && (d as any).coaches.length > 0) {
+                    coachesData = d
+                    break
+                  }
+                } catch (_) {
+                  continue
+                }
+              }
+            }
+          } catch (_) {
+            // ignore
           }
         }
-        if (contractData?.template) setContractTemplate(contractData.template);
-      })
-      .catch(() => void 0);
-  }, [coach?.id]);
+
+        if (coachesData) {
+          setTeamCoaches(coachesData.coaches ?? [])
+          setForm((prev) => ({
+            ...prev,
+            teamId: coachesData.teamId ?? prev.teamId,
+            coachId:
+              prev.coachId ||
+              (coachesData.coaches.find((c) => c.coachId === coach?.id)?.coachId ?? coachesData.coaches[0]?.coachId ?? ''),
+          }))
+        }
+
+        // Cargar catalog y contrato (independiente)
+        try {
+          const [catalogData, contractData] = await Promise.all([
+            apiFetch<any>('/api/teams/catalog').catch(() => ({})),
+            apiFetch<any>('/api/teams/contract').catch(() => ({})),
+          ])
+          const visibleGoals = (catalogData?.goals ?? []).filter((g: any) => g.isVisible !== false)
+          if (visibleGoals.length > 0) setCatalogGoals(visibleGoals)
+          if ((catalogData?.phases ?? []).length > 0) {
+            setCatalogPhases(catalogData.phases)
+            setPhaseMode('catalog')
+          }
+
+          if (contractData?.template) setContractTemplate(contractData.template)
+        } catch (_) {
+          // ignore
+        }
+      } catch (_) {
+        // ignore
+      }
+    }
+
+    void load()
+  }, [coach?.id])
 
   const selectedCoach = useMemo(
     () => teamCoaches.find((c) => c.coachId === form.coachId) ?? null,
@@ -136,11 +176,7 @@ export default function OnboardingPage() {
     });
 
     if (consentAccepted && created?.id) {
-      await fetch(`/api/athletes/${created.id}/consent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signatureRef: consentSignature.trim() || null }),
-      }).catch(() => void 0);
+      await apiPost(`/api/athletes/${created.id}/consent`, { signatureRef: consentSignature.trim() || null }).catch(() => void 0)
     }
 
     setSubmitted(true);

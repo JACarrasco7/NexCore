@@ -1,6 +1,7 @@
 'use client'
+export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
@@ -18,7 +19,7 @@ interface TeamMember {
   role: 'ADMIN' | 'MEMBER'
 }
 
-export default function TeamSettingsPage() {
+function TeamSettingsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -138,14 +139,14 @@ export default function TeamSettingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-900 to-slate-900 p-6">
+      <div className="min-h-screen bg-linear-to-br from-slate-950 via-purple-900 to-slate-900 p-6">
         <div className="mx-auto max-w-4xl text-white/60">Cargando...</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-900 to-slate-900 p-6">
+    <div className="min-h-screen bg-linear-to-br from-slate-950 via-purple-900 to-slate-900 p-6">
       <div className="mx-auto max-w-4xl">
         {/* Header */}
         <div className="mb-8">
@@ -292,5 +293,13 @@ export default function TeamSettingsPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function TeamSettingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <TeamSettingsContent />
+    </Suspense>
   )
 }

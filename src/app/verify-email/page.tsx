@@ -1,10 +1,12 @@
-'use client'
+"use client"
+export const dynamic = 'force-dynamic'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
+import { apiPost } from '@/lib/store'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
-export default function VerifyEmailPage() {
+function VerifyEmailContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session, update: updateSession } = useSession()
@@ -23,15 +25,10 @@ export default function VerifyEmailPage() {
       }
 
       try {
-        const res = await fetch('/api/auth/verify-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, email }),
-        })
-
-        if (!res.ok) {
-          const data = (await res.json()) as { error?: string }
-          setError(data.error ?? 'No se pudo verificar el email')
+        try {
+          await apiPost('/api/auth/verify-email', { token, email })
+        } catch (err: any) {
+          setError(err?.message ?? 'No se pudo verificar el email')
           setLoading(false)
           return
         }
@@ -85,4 +82,12 @@ export default function VerifyEmailPage() {
   }
 
   return null
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={null}>
+      <VerifyEmailContent />
+    </Suspense>
+  )
 }

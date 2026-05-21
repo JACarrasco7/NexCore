@@ -11,6 +11,7 @@ import {
   buildPaginationResponse,
 } from "@/lib/api";
 import { nutritionLogSchema } from "@/lib/validators";
+import { parseJsonOrError } from '@/lib/api/json-parser'
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +30,13 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
   }
 
+  const takeParam = searchParams.get('take') ?? searchParams.get('limit') ?? undefined
+  const cursorParam = searchParams.get('cursor') ?? undefined
   const pagination = paginationSchema.safeParse({
-    take: searchParams.get("take") ?? 50,
-    cursor: searchParams.get("cursor") ?? undefined,
-    from: searchParams.get("from") ?? undefined,
-    to: searchParams.get("to") ?? undefined,
+    take: takeParam,
+    cursor: cursorParam,
+    from: searchParams.get('from') ?? undefined,
+    to: searchParams.get('to') ?? undefined,
   });
   const { take, cursor, from, to } = pagination.success
     ? pagination.data
@@ -138,17 +141,15 @@ export async function POST(req: Request) {
   }
 
   // ── JSON path ──────────────────────────────────────────────────────────────
-  let rawBody: unknown;
-  try { rawBody = await req.json(); } catch {
-    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
-  }
+  const parseResult = await parseJsonOrError(req)
+  if (!parseResult.ok) return parseResult.error
 
-  const parsed = nutritionLogSchema.safeParse(rawBody);
+  const parsed = nutritionLogSchema.safeParse(parseResult.data)
   if (!parsed.success)
-    return NextResponse.json({ error: "Datos inválidos", details: parsed.error.flatten() }, { status: 422 });
+    return NextResponse.json({ error: "Datos inválidos", details: parsed.error.flatten() }, { status: 422 })
 
-  const resolved = await resolveAthleteId(parsed.data.athleteId);
-  if (resolved instanceof NextResponse) return resolved;
+  const resolved = await resolveAthleteId(parsed.data.athleteId)
+  if (resolved instanceof NextResponse) return resolved
 
   const log = await prisma.nutritionLog.create({
     data: {

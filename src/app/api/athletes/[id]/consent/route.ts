@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { assertAthleteAccess, requireSession } from '@/lib/api/auth-helpers'
 import { AuthError, ForbiddenError } from '@/lib/api/errors'
+import { parseJsonOrError } from '@/lib/api/json-parser'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -52,8 +53,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       )
     }
 
-    const body = await req.json().catch(() => ({}))
-    const { signatureRef, version } = body as {
+    const parseResult = await parseJsonOrError(req)
+    if (!parseResult.ok) return parseResult.error
+    const body = parseResult.data as {
       signatureRef?: string
       version?: string
     }
@@ -75,7 +77,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       athlete?.team?.settings?.contractTemplate ??
       athlete?.team?.contractTemplate ??
       'Contrato estándar de NEXUM v1.0'
-    const finalVersion = version ?? athlete?.team?.settings?.contractVersion ?? '1.0'
+    const finalVersion = body.version ?? athlete?.team?.settings?.contractVersion ?? '1.0'
 
     const ip =
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
@@ -88,7 +90,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         athleteId: id,
         version: finalVersion,
         content,
-        signatureRef: signatureRef ?? null,
+        signatureRef: body.signatureRef ?? null,
         ipAddress: ip,
         userAgent,
       },
@@ -116,7 +118,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const { consentId } = (await req.json().catch(() => ({}))) as {
+    const parseResult = await parseJsonOrError(req)
+    if (!parseResult.ok) return parseResult.error
+    const { consentId } = parseResult.data as {
       consentId?: string
     }
     if (!consentId) {

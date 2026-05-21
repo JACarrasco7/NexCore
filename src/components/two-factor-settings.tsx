@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiFetch, apiPost } from '@/lib/store'
 
 export default function TwoFactorSettings() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -13,10 +14,8 @@ export default function TwoFactorSettings() {
 
   async function load() {
     try {
-      const res = await fetch('/api/2fa/status');
-      if (!res.ok) throw new Error('no auth');
-      const json = await res.json();
-      setEnabled(Boolean(json.totpEnabled));
+      const json = await apiFetch<any>('/api/2fa/status')
+      setEnabled(Boolean(json?.totpEnabled))
     } catch (err) {
       setEnabled(false);
     }
@@ -28,11 +27,9 @@ export default function TwoFactorSettings() {
     setMessage(null);
     setLoading(true);
     try {
-      const res = await fetch('/api/2fa/setup');
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? 'error');
-      setQr(json.qr);
-      setSecret(null);
+      const json = await apiFetch<any>('/api/2fa/setup')
+      setQr(json.qr)
+      setSecret(null)
     } catch (err: any) {
       setMessage(err?.message ?? 'Error');
     } finally {
@@ -45,14 +42,12 @@ export default function TwoFactorSettings() {
     setLoading(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/2fa/enable', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: code }) });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? 'Error');
-      setBackupCodes(Array.isArray(json.backupCodes) ? json.backupCodes : null);
-      setEnabled(true);
-      setQr(null);
-      setSecret(null);
-      setCode('');
+      const json = await apiPost('/api/2fa/enable', { token: code })
+      setBackupCodes(Array.isArray((json as any).backupCodes) ? (json as any).backupCodes : null)
+      setEnabled(true)
+      setQr(null)
+      setSecret(null)
+      setCode('')
     } catch (err: any) {
       setMessage(err?.message ?? 'Error');
     } finally {
@@ -67,12 +62,10 @@ export default function TwoFactorSettings() {
       const body: any = {};
       if (useBackup) body.backupCode = code;
       else body.token = code;
-      const res = await fetch('/api/2fa/disable', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? 'Error');
-      setEnabled(false);
-      setCode('');
-      setMessage('2FA deshabilitado');
+      await apiPost('/api/2fa/disable', body)
+      setEnabled(false)
+      setCode('')
+      setMessage('2FA deshabilitado')
     } catch (err: any) {
       setMessage(err?.message ?? 'Error');
     } finally {

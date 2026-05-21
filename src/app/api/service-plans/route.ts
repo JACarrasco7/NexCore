@@ -18,7 +18,6 @@ export async function GET() {
 
   const plans = await prisma.servicePlan.findMany({
     where: { coachId: coach.id },
-    include: { _count: { select: { subscriptions: true } } },
     orderBy: { createdAt: 'asc' },
   })
 

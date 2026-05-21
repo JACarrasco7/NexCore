@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { apiFetch, apiPost } from '@/lib/store'
 
 type PostAuthor = { id: string; name: string | null; email: string | null; role: string };
 type Comment = { id: string; postId: string; authorId: string; content: string; createdAt: string; author: PostAuthor };
@@ -38,15 +39,12 @@ function CommentList({ postId, comments: initial, myId }: { postId: string; comm
     e.preventDefault();
     if (!text.trim()) return;
     setSending(true);
-    const res = await fetch(`/api/team-posts/${postId}/comments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: text.trim() }),
-    });
-    if (res.ok) {
-      const c: Comment = await res.json();
-      setComments((prev) => [...prev, c]);
-      setText("");
+    try {
+      const c = await apiPost(`/api/team-posts/${postId}/comments`, { content: text.trim() })
+      setComments((prev) => [...prev, c as Comment])
+      setText("")
+    } catch (err) {
+      // ignore
     }
     setSending(false);
   }
@@ -115,11 +113,12 @@ export function TeamWall({ isCoach = false }: TeamWallProps) {
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchPosts = useCallback(async () => {
-    const res = await fetch("/api/team-posts");
-    if (res.ok) {
-      const data: Post[] = await res.json();
-      setPosts(data);
-      setLoading(false);
+    try {
+      const data = await apiFetch<Post[]>('/api/team-posts')
+      setPosts(Array.isArray(data) ? data : [])
+      setLoading(false)
+    } catch (err) {
+      // ignore
     }
   }, []);
 
@@ -133,25 +132,26 @@ export function TeamWall({ isCoach = false }: TeamWallProps) {
     e.preventDefault();
     if (!newText.trim()) return;
     setPosting(true);
-    const res = await fetch("/api/team-posts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: newText.trim(), isPinned }),
-    });
-    if (res.ok) {
-      const post: Post = await res.json();
-      setPosts((prev) => isPinned ? [post, ...prev] : [post, ...prev]);
-      setNewText("");
-      setIsPinned(false);
-      setShowForm(false);
+    try {
+      const post = await apiPost('/api/team-posts', { content: newText.trim(), isPinned })
+      setPosts((prev) => isPinned ? [post as Post, ...prev] : [post as Post, ...prev])
+      setNewText("")
+      setIsPinned(false)
+      setShowForm(false)
+    } catch (err) {
+      // ignore
     }
     setPosting(false);
   }
 
   async function handleDelete(id: string) {
     if (!confirm("¿Eliminar este post?")) return;
-    const res = await fetch(`/api/team-posts/${id}`, { method: "DELETE" });
-    if (res.ok) setPosts((prev) => prev.filter((p) => p.id !== id));
+    try {
+      await apiPost(`/api/team-posts/${id}`, { _method: 'DELETE' });
+      setPosts((prev) => prev.filter((p) => p.id !== id));
+    } catch {
+      // ignore
+    }
   }
 
   return (

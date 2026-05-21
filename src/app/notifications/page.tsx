@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import NotificationDetail from "@/components/notification-detail";
+import { apiFetch, apiPost } from '@/lib/store'
 
 type Notif = {
   id: string;
@@ -22,10 +23,9 @@ export default function NotificationsPage() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch('/api/notifications?limit=50');
-      if (!res.ok) throw new Error('no auth');
-      const json = await res.json();
-      setItems(Array.isArray(json) ? json : []);
+      const data = await apiFetch<any>('/api/notifications?limit=50').catch(() => [])
+      const arr = Array.isArray(data) ? data : data?.items ?? []
+      setItems(Array.isArray(arr) ? arr : [])
     } catch (err) {
       setItems([]);
     } finally {
@@ -39,7 +39,7 @@ export default function NotificationsPage() {
     // optimistic
     setItems((cur) => cur.map((it) => (it.id === id ? { ...it, read: true } : it)));
     try {
-      await fetch('/api/notifications/mark-read', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ids: [id] }) });
+      await apiPost('/api/notifications/mark-read', { ids: [id] })
     } catch {
       // ignore
     }

@@ -70,7 +70,7 @@ export default async function PrintPlanPage({ params }: { params: Promise<{ id: 
         </button>
       </div>
 
-      <main className="mx-auto max-w-[1480px] px-6 py-12">
+      <main className="mx-auto max-w-370 px-6 py-12">
         {/* Header */}
         <div className="mb-8 border-b pb-6">
           <p className="text-xs tracking-widest text-gray-400 uppercase">Plan de entrenamiento</p>
@@ -82,9 +82,11 @@ export default async function PrintPlanPage({ params }: { params: Promise<{ id: 
             <span>
               Semana: <strong className="text-gray-800">{plan.weekLabel}</strong>
             </span>
-            <span>
-              Coach: <strong className="text-gray-800">{plan.coach.displayName}</strong>
-            </span>
+            {plan.coach && (
+              <span>
+                Coach: <strong className="text-gray-800">{plan.coach.displayName}</strong>
+              </span>
+            )}
           </div>
         </div>
 

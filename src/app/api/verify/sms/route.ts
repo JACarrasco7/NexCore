@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { parseJsonOrError } from '@/lib/api/json-parser'
 import { auth } from '@/auth'
 import { OtpType } from '@prisma/client'
 
@@ -15,8 +16,11 @@ const schema = z.object({
  * Marca phoneVerified en athlete/coach profile según corresponda.
  */
 export async function POST(request: Request) {
+  const parseResult = await parseJsonOrError(request)
+  if (!parseResult.ok) return parseResult.error
+
   try {
-    const body = await request.json()
+    const body = parseResult.data
     const { otp, role: providedRole } = schema.parse(body)
 
     const session = await auth()

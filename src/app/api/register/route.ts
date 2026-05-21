@@ -7,6 +7,7 @@ import { sendEmail } from '@/lib/email'
 import { sendSms } from '@/lib/sms'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { Role, OtpType } from '@prisma/client'
+import { parseJsonOrError } from '@/lib/api/json-parser'
 
 const registerSchema = z
   .object({
@@ -50,7 +51,9 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const raw = await request.json()
+  const result = await parseJsonOrError(request)
+  if (!result.ok) return result.error
+  const raw = result.data as any // Already validated by parseJsonOrError
   const parsed = registerSchema.safeParse(raw)
   if (!parsed.success) {
     return NextResponse.json(

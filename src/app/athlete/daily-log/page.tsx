@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = 'force-dynamic'
 
 import { Suspense, useEffect, useId, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -87,7 +88,7 @@ function DailyLogContent() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1480px] gap-6 px-6 py-8 md:px-10 lg:px-12">
+    <div className="mx-auto flex w-full max-w-370 gap-6 px-6 py-8 md:px-10 lg:px-12">
       <main className="flex-1 min-w-0 flex flex-col gap-8">
       <SectionIntro
         eyebrow="Registro diario"

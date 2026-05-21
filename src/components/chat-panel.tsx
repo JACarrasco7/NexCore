@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { apiFetch, apiPost } from '@/lib/store'
 
 type MsgUser = { id: string; name: string | null; email: string | null; role: string };
 type Msg = {
@@ -35,22 +36,47 @@ export function ChatPanel({ withUserId, withName, athleteId }: ChatPanelProps) {
   const [emojiGroups, setEmojiGroups] = useState<EmojiGroup[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
 
   const fetchMessages = useCallback(async () => {
-    const qs = new URLSearchParams({ withUserId });
-    if (athleteId) qs.set("athleteId", athleteId);
-    const res = await fetch(`/api/messages?${qs}`);
-    if (res.ok) {
-      const data: Msg[] = await res.json();
-      setMessages(data);
+    try {
+      // Cancel previous request if still in-flight
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
+      const qs = new URLSearchParams({ withUserId });
+      if (athleteId) qs.set("athleteId", athleteId);
+      const res = await fetch(`/api/messages?${qs}`, {
+        signal: abortControllerRef.current.signal,
+      });
+      if (res.ok) {
+        const data: Msg[] = await res.json();
+        setMessages(data);
+      } else {
+        console.warn(`[chat-panel] Messages fetch failed: ${res.status}`);
+      }
+    } catch (err) {
+      // Ignore AbortError (request was cancelled)
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
+      console.error("[chat-panel] Fetch messages error:", err);
     }
   }, [withUserId, athleteId]);
 
   useEffect(() => {
     fetchMessages();
     pollingRef.current = setInterval(fetchMessages, 4000);
-    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      // Cancel any in-flight requests on unmount
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [fetchMessages]);
 
   useEffect(() => {
@@ -69,10 +95,11 @@ export function ChatPanel({ withUserId, withName, athleteId }: ChatPanelProps) {
 
   async function toggleEmojis() {
     if (!emojiOpen && emojiGroups.length === 0) {
-      const res = await fetch("/api/emojis");
-      if (res.ok) {
-        const data: EmojiGroup[] = await res.json();
-        setEmojiGroups(data);
+      try {
+        const data = await apiFetch<EmojiGroup[]>("/api/emojis")
+        setEmojiGroups(Array.isArray(data) ? data : [])
+      } catch (err) {
+        // ignore
       }
     }
     setEmojiOpen((v) => !v);
@@ -104,16 +131,11 @@ export function ChatPanel({ withUserId, withName, athleteId }: ChatPanelProps) {
 
     const body: Record<string, string> = { toUserId: withUserId, content: sentText };
     if (athleteId) body.athleteId = athleteId;
-    const res = await fetch("/api/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) {
-      const msg: Msg = await res.json();
+    try {
+      const msg = await apiPost<Msg>("/api/messages", body);
       // Reemplazar el temporal con el real
       setMessages((prev) => prev.map((m) => (m.id === tempId ? msg : m)));
-    } else {
+    } catch (err) {
       // Revertir
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setText(sentText);

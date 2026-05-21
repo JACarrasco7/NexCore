@@ -124,7 +124,7 @@ export default function ProgressPhotosPage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-[1480px] flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
+    <main className="mx-auto flex w-full max-w-370 flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
       <SectionIntro
         eyebrow="Progreso visual"
         title="Fotos de progreso"
@@ -157,7 +157,7 @@ export default function ProgressPhotosPage() {
                   </div>
                 </div>
               ) : (
-                <div key={i} className="flex aspect-[3/4] items-center justify-center rounded-3xl border border-dashed border-line text-sm text-foreground/30">
+                <div key={i} className="flex aspect-3/4 items-center justify-center rounded-3xl border border-dashed border-line text-sm text-foreground/30">
                   Selecciona una foto
                 </div>
               )
@@ -240,7 +240,7 @@ export default function ProgressPhotosPage() {
         {loading ? (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="aspect-[3/4] animate-pulse rounded-3xl bg-surface-strong" />
+              <div key={i} className="aspect-3/4 animate-pulse rounded-3xl bg-surface-strong" />
             ))}
           </div>
         ) : photos.length === 0 ? (
@@ -264,7 +264,7 @@ export default function ProgressPhotosPage() {
                     className="w-full"
                     title="Seleccionar para comparar"
                   >
-                    <div className="relative aspect-[3/4] w-full">
+                    <div className="relative aspect-3/4 w-full">
                       <Image src={photo.url} alt={photo.weekLabel ?? "Foto"} fill className="object-cover" />
                     </div>
                   </button>

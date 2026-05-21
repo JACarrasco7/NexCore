@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = 'force-dynamic'
 
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -253,7 +254,7 @@ function NutritionContent() {
 
 export default function NutritionPage() {
   return (
-    <main className="mx-auto flex w-full max-w-[1480px] flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
+    <main className="mx-auto flex w-full max-w-370 flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
       <SectionIntro
         eyebrow="Nutricion"
         title="Plan nutricional"

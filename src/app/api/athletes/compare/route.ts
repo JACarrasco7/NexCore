@@ -2,41 +2,66 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { compareAthletesSchema } from "@/lib/validators";
+import { parseJsonOrError } from '@/lib/api/json-parser'
+import { unauthorized, forbidden, badRequest, notFound } from '@/lib/api/error-response'
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user?.id) return unauthorized('Unauthorized')
 
   const role = (session.user as { role?: string }).role;
   if (role !== "COACH" && role !== "ADMIN")
-    return NextResponse.json({ error: "Solo el coach puede comparar atletas" }, { status: 403 });
+    return forbidden('Solo el coach puede comparar atletas')
 
-  const body: { ids?: string[] } = await req.json().catch(() => ({}));
+  const parsedBody = await parseJsonOrError(req)
+  if (!parsedBody.ok) return parsedBody.error
+  const body = parsedBody.data as any
   const parsed = compareAthletesSchema.safeParse(body);
   if (!parsed.success)
-    return NextResponse.json({ error: "ids debe ser array de 2-5 elementos", details: parsed.error.flatten().fieldErrors }, { status: 400 });
+    return badRequest('ids debe ser array de 2-5 elementos', parsed.error.flatten().fieldErrors);
   const ids = parsed.data.ids;
 
   const coach = await prisma.coach.findUnique({
     where: { userId: session.user.id },
     select: { id: true },
   });
-  if (!coach) return NextResponse.json({ error: "Perfil de coach no encontrado" }, { status: 404 });
+  if (!coach) return notFound('Perfil de coach no encontrado')
 
+  // Fetch athlete data with optimized queries: reduce data transfer, filter at DB level where possible
   const athletes = await prisma.athlete.findMany({
     where: { id: { in: ids }, coachId: coach.id },
     include: {
-      checkIns: { orderBy: { date: "desc" }, take: 12 },
-      dailyLogs: { orderBy: { date: "desc" }, take: 90 },
-      sessionLogs: { orderBy: { date: "desc" }, take: 30 },
-      bodyMeasurements: { orderBy: { date: "desc" }, take: 10 },
+      checkIns: { 
+        orderBy: { date: "desc" }, 
+        take: 12,
+        select: { date: true, coachNote: true, weightKg: true, adherencePct: true, sleepHours: true }
+      },
+      dailyLogs: { 
+        orderBy: { date: "desc" }, 
+        take: 20, // Reduced from 90 — only need ~14-20 to cover 2 weeks + margin
+        select: { date: true, weightKg: true, sleepHours: true, steps: true }
+      },
+      sessionLogs: { 
+        where: {
+          date: {
+            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days at DB level
+          },
+        },
+        orderBy: { date: "desc" },
+        select: { date: true }
+      },
+      bodyMeasurements: { 
+        orderBy: { date: "desc" }, 
+        take: 3, // Reduced from 10 — only need the latest
+        select: { date: true, bodyFatPct: true, waistCm: true }
+      },
     },
   });
 
   if (athletes.length !== ids.length)
-    return NextResponse.json({ error: "Uno o más atletas no encontrados o no pertenecen al coach" }, { status: 404 });
+    return notFound('Uno o más atletas no encontrados o no pertenecen al coach')
 
   const result = athletes.map((a) => {
     // Adherencia: check-ins últimas 12 semanas
@@ -65,10 +90,8 @@ export async function POST(req: NextRequest) {
       ? Math.round(recentSteps.reduce((s, v) => s + v, 0) / recentSteps.length)
       : null;
 
-    // Sesiones registradas último mes
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 30);
-    const sessionsLast30 = a.sessionLogs.filter((s) => s.date >= cutoff).length;
+    // Sesiones registradas último mes (now filtered at DB level)
+    const sessionsLast30 = a.sessionLogs.length;
 
     // Última medición corporal
     const lastMeasurement = a.bodyMeasurements[0] ?? null;

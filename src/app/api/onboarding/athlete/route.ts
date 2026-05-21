@@ -148,24 +148,44 @@ export async function POST(req: NextRequest) {
     const verMethod: VerificationMethod =
       verificationMethod === 'SMS' ? VerificationMethod.SMS : VerificationMethod.EMAIL
 
-    const athlete = await prisma.athlete.create({
-      data: {
-        userId: user.id,
-        coachId: coach.id,
-        teamId: resolvedTeamId,
-        fullName: fullName.trim(),
-        goal: goalEnum,
-        phaseLabel: weightKg ? `Inicio — ${weightKg} kg` : 'Semana 1',
-        phone: phone?.trim() || null,
-        contactEmail: contactEmail?.trim() || null,
-        verificationMethod: verMethod,
-        phoneVerified: verificationMethod === 'SMS' ? true : false, // Si fue SMS en registro, ya está verificado
-      },
-    })
+    // Usar transacción para atomicidad: verificar coach, crear atleta, actualizar user
+    const athlete = await prisma.$transaction(async (tx) => {
+      // Re-validar que el coach sigue existiendo (prevenir race condition)
+      const coachExists = await tx.coach.findUnique({
+        where: { id: coach.id },
+        select: { id: true },
+      })
+      if (!coachExists) {
+        throw new Error('Coach no encontrado. Intenta nuevamente.')
+      }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { name: fullName.trim() },
+      // Re-validar que el atleta no existe aún
+      const existingAthleteInTx = await tx.athlete.findUnique({ where: { userId: user.id } })
+      if (existingAthleteInTx) {
+        throw new Error('El perfil de atleta ya existe.')
+      }
+
+      const newAthlete = await tx.athlete.create({
+        data: {
+          userId: user.id,
+          coachId: coach.id,
+          teamId: resolvedTeamId,
+          fullName: fullName.trim(),
+          goal: goalEnum,
+          phaseLabel: weightKg ? `Inicio — ${weightKg} kg` : 'Semana 1',
+          phone: phone?.trim() || null,
+          contactEmail: contactEmail?.trim() || null,
+          verificationMethod: verMethod,
+          phoneVerified: verificationMethod === 'SMS' ? true : false,
+        },
+      })
+
+      await tx.user.update({
+        where: { id: user.id },
+        data: { name: fullName.trim() },
+      })
+
+      return newAthlete
     })
 
     return NextResponse.json(

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiPost } from '@/lib/store'
 
 type Props = {
   open: boolean;
@@ -31,29 +32,20 @@ export default function OtpModal({ open, email, type = "LOGIN", onClose, onValid
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/otp/generate", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, type }),
-      });
-      const body = await res.json();
-      if (!res.ok) {
-        setError(body.error ?? "Error al solicitar código");
-      } else {
-        setHint(body.hint ?? "Código enviado, revisa tu email");
-        // Start local resend cooldown (60s)
-        setCooldown(60);
-        if (cooldownRef.id) clearInterval(cooldownRef.id);
-        cooldownRef.id = setInterval(() => {
-          setCooldown((c) => {
-            if (c <= 1) {
-              if (cooldownRef.id) clearInterval(cooldownRef.id);
-              return 0;
-            }
-            return c - 1;
-          });
-        }, 1000) as any;
-      }
+      const body = await apiPost('/api/auth/otp/generate', { email, type })
+      setHint((body as any).hint ?? 'Código enviado, revisa tu email')
+      // Start local resend cooldown (60s)
+      setCooldown(60)
+      if (cooldownRef.id) clearInterval(cooldownRef.id)
+      cooldownRef.id = setInterval(() => {
+        setCooldown((c) => {
+          if (c <= 1) {
+            if (cooldownRef.id) clearInterval(cooldownRef.id)
+            return 0
+          }
+          return c - 1
+        })
+      }, 1000) as any
     } catch (err) {
       setError("Error de red");
     } finally {
@@ -79,18 +71,9 @@ export default function OtpModal({ open, email, type = "LOGIN", onClose, onValid
         return;
       }
 
-      const res = await fetch("/api/auth/otp/validate", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, code, type }),
-      });
-      const body = await res.json();
-      if (!res.ok) {
-        setError(body.error ?? body.message ?? "Código inválido");
-      } else {
-        onValidated?.({ userId: body.userId, nextStep: body.nextStep });
-        onClose();
-      }
+      const body = await apiPost('/api/auth/otp/validate', { email, code, type })
+      onValidated?.({ userId: (body as any).userId, nextStep: (body as any).nextStep })
+      onClose()
     } catch (err) {
       setError("Error de red");
     } finally {

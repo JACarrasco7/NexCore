@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { apiFetch, apiPost } from '@/lib/store'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
@@ -145,19 +146,15 @@ export default function OnboardingPage() {
     }
     setVerifyLoading(true)
     const purpose = role === 'ATHLETE' ? 'ATHLETE_VERIFICATION' : 'COACH_PHONE_VERIFICATION'
-    const res = await fetch('/api/otp/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, purpose }),
-    })
-    setVerifyLoading(false)
-    if (!res.ok) {
-      const msg = await readErrorMessage(res, 'No se pudo enviar OTP')
-      setError(msg)
-      return
+    try {
+      await apiPost('/api/otp/send', { phone, purpose })
+      setOtpSent(true)
+      setError(null)
+    } catch (err: any) {
+      setError(err?.message ?? 'No se pudo enviar OTP')
+    } finally {
+      setVerifyLoading(false)
     }
-    setOtpSent(true)
-    setError(null)
   }
 
   async function handleVerifyOtp() {
@@ -166,38 +163,26 @@ export default function OnboardingPage() {
       return
     }
     setVerifyLoading(true)
-    const res = await fetch('/api/verify/sms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ otp }),
-    })
-    setVerifyLoading(false)
-    if (!res.ok) {
-      const msg = await readErrorMessage(res, 'OTP inválido')
-      setError(msg)
-      return
+    try {
+      await apiPost('/api/verify/sms', { otp })
+      setError(null)
+      setStep(step + 1)
+    } catch (err: any) {
+      setError(err?.message ?? 'OTP inválido')
+    } finally {
+      setVerifyLoading(false)
     }
-    setError(null)
-    setStep(step + 1)
   }
 
   async function handleResendEmail() {
     setVerifyLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/auth/resend-email', {
-        method: 'POST',
-      })
-      if (!res.ok) {
-        const data = (await res.json()) as { error?: string }
-        setError(data.error ?? 'Error al reenviar')
-        return
-      }
+      await apiPost('/api/auth/resend-email', {})
       setError(null)
-      // No mostrar error, indica que se envió
     } catch (err) {
       console.error('Resend error:', err)
-      setError('Error al reenviar correo')
+      setError((err as any)?.message ?? 'Error al reenviar correo')
     } finally {
       setVerifyLoading(false)
     }
@@ -214,9 +199,7 @@ export default function OnboardingPage() {
       await new Promise((r) => setTimeout(r, 1500))
 
       // Recargar sesión desde API
-      const response = await fetch('/api/auth/session')
-      const newSession = (await response.json()) as { user?: { emailVerified?: boolean | Date } }
-
+      const newSession = await apiFetch<{ user?: { emailVerified?: boolean | Date } }>('/api/auth/session')
       const isVerified = Boolean(newSession.user?.emailVerified)
       if (!isVerified) {
         setError('Tu email aún no ha sido verificado. Revisa tu bandeja de entrada.')
@@ -239,16 +222,7 @@ export default function OnboardingPage() {
     setLoading(true)
     try {
       if (role === 'COACH') {
-        const res = await fetch('/api/onboarding/coach', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ displayName, bio, specialty }),
-        })
-        if (!res.ok) {
-          const msg = await readErrorMessage(res, 'Error al guardar perfil')
-          setError(msg)
-          return
-        }
+        await apiPost('/api/onboarding/coach', { displayName, bio, specialty })
       } else {
         // Validar que al menos email o teléfono estén presentes
         if (!contactEmail?.trim() && !phone?.trim()) {
@@ -257,27 +231,20 @@ export default function OnboardingPage() {
           return
         }
 
-        const res = await fetch('/api/onboarding/athlete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fullName,
-            goal,
-            coachEmail,
-            weightKg: weightKg ? Number(weightKg) : undefined,
-            phone: phone?.trim() || undefined,
-            contactEmail: contactEmail?.trim() || undefined,
-            verificationMethod,
-          }),
+        await apiPost('/api/onboarding/athlete', {
+          fullName,
+          goal,
+          coachEmail,
+          weightKg: weightKg ? Number(weightKg) : undefined,
+          phone: phone?.trim() || undefined,
+          contactEmail: contactEmail?.trim() || undefined,
+          verificationMethod,
         })
-        if (!res.ok) {
-          const msg = await readErrorMessage(res, 'Error al guardar perfil')
-          setError(msg)
-          return
-        }
       }
       setDone(true)
       setStep(totalSteps)
+    } catch (err: any) {
+      setError(err?.message ?? 'Error al guardar perfil')
     } finally {
       setLoading(false)
     }
@@ -736,7 +703,7 @@ export default function OnboardingPage() {
                 onClick={goToDashboard}
                 className="from-accent to-accent-strong w-full rounded-2xl bg-linear-to-r py-3.5 text-sm font-semibold text-white shadow-[0_4px_16px_var(--accent-glow)] transition hover:brightness-110"
               >
-                {role === 'COACH' ? 'Ir al Dashboard →' : 'Ver mi Plan →'}
+                {role === 'COACH' ? 'Ir al Dashboard →' : 'Ver mi plan de entrenamiento →'}
               </button>
             </div>
           )}

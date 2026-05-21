@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { parseJsonOrError } from '@/lib/api/json-parser';
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,9 @@ export async function PATCH(
   const ownership = await assertOwnership(session.user.id, id);
   if (!ownership) return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
 
-  const body = await request.json() as {
+  const parseResult = await parseJsonOrError(request);
+  if (!parseResult.ok) return parseResult.error;
+  const body = parseResult.data as {
     label?: string;
     description?: string;
     isVisible?: boolean;

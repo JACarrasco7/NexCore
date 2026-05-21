@@ -3,6 +3,8 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 import { auditMutation } from "@/lib/api/audit";
+import { parseJsonOrError } from "@/lib/api/json-parser";
+import { safeJsonParse } from "@/lib/json-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -111,7 +113,7 @@ export async function GET(
     measurementEveryDays: athlete.measurementEveryDays,
     reviewCadence: reviewCadenceToApi(athlete.reviewCadence),
     reviewEveryDays: athlete.reviewEveryDays,
-    healthConnections: athlete.healthConnections ? JSON.parse(athlete.healthConnections) : [],
+    healthConnections: safeJsonParse(athlete.healthConnections, []),
   });
 }
 
@@ -188,7 +190,9 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await request.json();
+  const result = await parseJsonOrError(request);
+  if (!result.ok) return result.error;
+  const body = result.data as any; // Already validated by parseJsonOrError
   const goalMap: Record<string, string> = {
     volumen: "VOLUMEN",
     definicion: "DEFINICION",
@@ -249,6 +253,6 @@ export async function PATCH(
     measurementEveryDays: updated.measurementEveryDays,
     reviewCadence: reviewCadenceToApi(updated.reviewCadence),
     reviewEveryDays: updated.reviewEveryDays,
-    healthConnections: updated.healthConnections ? JSON.parse(updated.healthConnections) : [],
+    healthConnections: safeJsonParse(updated.healthConnections, []),
   });
 }

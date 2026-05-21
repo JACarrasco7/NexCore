@@ -9,6 +9,7 @@ import { generateOtp } from '@/lib/otp'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { prisma } from '@/lib/prisma'
 import { OtpType } from '@prisma/client'
+import { parseJsonOrError } from '@/lib/api/json-parser'
 
 const generateSchema = z.object({
   email: z.string().email(),
@@ -38,7 +39,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
+    const parseResult = await parseJsonOrError(request)
+    if (!parseResult.ok) return parseResult.error
+    const body = parseResult.data as any // Already validated by parseJsonOrError
     const parsed = generateSchema.safeParse(body)
 
     if (!parsed.success) {

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { apiFetch, apiPost } from '@/lib/store'
 
 type NotificationItem = {
   id: string;
@@ -31,22 +32,15 @@ export function NotificationBell() {
   const ref = useRef<HTMLDivElement>(null);
 
   async function refresh() {
-    const [latestRes, unreadRes] = await Promise.all([
-      fetch("/api/notifications?limit=6").catch(() => null),
-      fetch("/api/notifications?unread=1&limit=50").catch(() => null),
-    ]);
+    const [latestArr, unreadArr] = await Promise.all([
+      apiFetch<any>('/api/notifications?limit=6').catch(() => []),
+      apiFetch<any>('/api/notifications?unread=1&limit=50').catch(() => []),
+    ])
 
-    if (latestRes?.ok) {
-      const latest = await latestRes.json() as NotificationItem[];
-      setItems(Array.isArray(latest) ? latest : []);
-    }
-
-    if (unreadRes?.ok) {
-      const unread = await unreadRes.json() as NotificationItem[];
-      const nextUnread = Array.isArray(unread) ? unread : [];
-      setUnreadCount(nextUnread.length);
-      setUnreadIds(nextUnread.map((item) => item.id));
-    }
+    setItems(Array.isArray(latestArr) ? latestArr : latestArr?.items ?? [])
+    const nextUnread = Array.isArray(unreadArr) ? unreadArr : unreadArr?.items ?? []
+    setUnreadCount(Array.isArray(nextUnread) ? nextUnread.length : 0)
+    setUnreadIds(Array.isArray(nextUnread) ? nextUnread.map((item) => item.id) : [])
   }
 
   useEffect(() => {
@@ -76,16 +70,13 @@ export function NotificationBell() {
     const prevIds = [...unreadIds];
     setUnreadIds([]);
 
-    const response = await fetch("/api/notifications/mark-read", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: prevIds }),
-    }).catch(() => null);
-    if (!response?.ok) {
+    try {
+      await apiPost('/api/notifications/mark-read', { ids: prevIds })
+    } catch (err) {
       // Revertir si falla
-      setItems((current) => current.map((item) => (idsToMark.has(item.id) ? { ...item, read: false } : item)));
-      setUnreadCount(prevIds.length);
-      setUnreadIds(prevIds);
+      setItems((current) => current.map((item) => (idsToMark.has(item.id) ? { ...item, read: false } : item)))
+      setUnreadCount(prevIds.length)
+      setUnreadIds(prevIds)
     }
   }
 

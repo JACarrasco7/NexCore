@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { assertAthleteAccess } from "@/lib/api";
 import type { ExerciseNote } from "@/lib/domain";
+import { parseJsonOrError } from "@/lib/api/json-parser";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,9 @@ export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const body: { athleteId: string; exerciseName: string; content: string } = await request.json();
+  const result = await parseJsonOrError(request);
+  if (!result.ok) return result.error;
+  const body = result.data as { athleteId: string; exerciseName: string; content: string };
 
   if (!body.athleteId || !body.exerciseName || !body.content?.trim()) {
     return NextResponse.json({ error: "athleteId, exerciseName y content requeridos" }, { status: 400 });

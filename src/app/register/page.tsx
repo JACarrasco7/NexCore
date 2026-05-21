@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { apiPost } from '@/lib/store'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
@@ -28,30 +29,17 @@ export default function RegisterPage() {
     }
 
     setLoading(true)
-    const res = await fetch('/api/otp/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        phone: form.phone,
-        purpose: 'ATHLETE_VERIFICATION',
-      }),
-    })
-    setLoading(false)
-
-    if (!res.ok) {
+    try {
+      await apiPost('/api/otp/send', { phone: form.phone, purpose: 'ATHLETE_VERIFICATION' })
+      setOtpSent(true)
+      setError(null)
+    } catch (err: any) {
       let msg = 'No se pudo enviar el OTP'
-      try {
-        const data = await res.json()
-        if (data?.error) msg = data.error
-      } catch {
-        /* ignore */
-      }
+      if (err?.message) msg = err.message
       setError(msg)
-      return
+    } finally {
+      setLoading(false)
     }
-
-    setOtpSent(true)
-    setError(null)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -71,23 +59,16 @@ export default function RegisterPage() {
     }
 
     setLoading(true)
-    const res = await fetch('/api/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    })
-    setLoading(false)
-    if (!res.ok) {
+    try {
+      await apiPost('/api/register', form)
+    } catch (err: any) {
       let msg = 'No se pudo crear la cuenta. Intenta de nuevo.'
-      try {
-        const data = await res.json()
-        if (data?.error) msg = data.error
-      } catch {
-        /* ignore */
-      }
+      if (err?.message) msg = err.message
       setError(msg)
+      setLoading(false)
       return
     }
+    setLoading(false)
 
     // Guardar método de verificación en sessionStorage para onboarding
     if (form.role === 'ATHLETE') {

@@ -148,7 +148,7 @@ export default function ExerciseDetailPage() {
 
   if (loadingAthlete || loadingLogs) {
     return (
-      <main className="mx-auto flex w-full max-w-[1480px] flex-1 flex-col gap-6 px-6 py-8 md:px-10 lg:px-12">
+      <main className="mx-auto flex w-full max-w-370 flex-1 flex-col gap-6 px-6 py-8 md:px-10 lg:px-12">
         <div className="bg-surface-strong h-8 w-48 animate-pulse rounded-2xl" />
         <div className="bg-surface-strong h-64 animate-pulse rounded-4xl" />
         <div className="bg-surface-strong h-40 animate-pulse rounded-4xl" />
@@ -157,7 +157,7 @@ export default function ExerciseDetailPage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-[1480px] flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
+    <main className="mx-auto flex w-full max-w-370 flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
       {/* Back + title */}
       <div className="flex items-start gap-3">
         <button

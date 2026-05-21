@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/toast";
 import { useSession } from "next-auth/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FoodSearch } from "@/components/food-search";
 
 type NutritionLog = {
   id: string;
@@ -46,6 +47,7 @@ export default function NutritionLogPage() {
   const [saving, setSaving] = useState(false);
   const [athleteId, setAthleteId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [dietType, setDietType] = useState<'open' | 'closed'>('closed')
   const photoRef = useRef<HTMLInputElement>(null);
 
   const [mealName, setMealName] = useState("");
@@ -64,6 +66,18 @@ export default function NutritionLogPage() {
       .catch(() => null);
     void session;
   }, [session]);
+
+  // Fetch diet type preference
+  useEffect(() => {
+    fetch('/api/me/nutrition-preference')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { dietType?: string } | null) => {
+        if (data?.dietType === 'open' || data?.dietType === 'closed') {
+          setDietType(data.dietType)
+        }
+      })
+      .catch(() => null)
+  }, [])
 
   async function load() {
     if (!athleteId) return;
@@ -146,15 +160,15 @@ export default function NutritionLogPage() {
     setPendingDelete(null);
   }
 
-  const today = new Date().toISOString().split("T")[0];
-  const todayLogs = logs.filter((l) => l.loggedAt.startsWith(today));
+  const today = new Date().toLocaleDateString('en-CA')
+  const todayLogs = logs.filter((l) => l.loggedAt.startsWith(today))
   const totalKcal = todayLogs.reduce((s, l) => s + (l.kcal ?? 0), 0);
   const totalProtein = todayLogs.reduce((s, l) => s + (l.proteinG ?? 0), 0);
   const totalCarbs = todayLogs.reduce((s, l) => s + (l.carbsG ?? 0), 0);
   const totalFat = todayLogs.reduce((s, l) => s + (l.fatG ?? 0), 0);
 
   return (
-    <main className="mx-auto flex w-full max-w-[1480px] flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
+    <main className="mx-auto flex w-full max-w-370 flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
       <SectionIntro
         eyebrow="Nutricion"
         title="Registro de comidas"
@@ -174,6 +188,25 @@ export default function NutritionLogPage() {
       <section className="grid gap-8 lg:grid-cols-[1fr_1.1fr]">
         <form onSubmit={handleSubmit} className="rounded-4xl border border-line bg-surface p-6 space-y-4">
           <h2 className="text-xl font-semibold">Añadir comida</h2>
+          
+          {/* Mostrar si dieta abierta está habilitada */}
+          {dietType === 'open' && (
+            <div className="bg-accent/10 border border-accent/30 rounded-2xl p-3">
+              <label className="block text-xs font-medium text-accent mb-2">Búsqueda de alimentos</label>
+              <FoodSearch
+                onSelect={(food) => {
+                  setMealName(food.name)
+                  if (food.kcal) setKcal(food.kcal.toString())
+                  if (food.proteinG) setProteinG(food.proteinG.toString())
+                  if (food.carbsG) setCarbsG(food.carbsG.toString())
+                  if (food.fatG) setFatG(food.fatG.toString())
+                }}
+                showFavorites={true}
+                provider="auto"
+              />
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-foreground/70 mb-1">Nombre</label>
@@ -228,7 +261,7 @@ export default function NutritionLogPage() {
             logs.map((log) => (
               <div key={log.id} className="flex gap-4 rounded-3xl border border-line bg-surface p-4">
                 {log.photoUrl && (
-                  <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-2xl">
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl">
                     <Image src={log.photoUrl} alt="Foto plato" fill className="object-cover" />
                   </div>
                 )}
@@ -237,7 +270,7 @@ export default function NutritionLogPage() {
                     <span className="font-semibold text-sm truncate">{log.mealName ?? "Comida"}</span>
                     <button
                       onClick={() => setPendingDelete(log.id)}
-                      className="text-foreground/30 hover:text-danger text-xs flex-shrink-0 transition"
+                      className="text-foreground/30 hover:text-danger text-xs shrink-0 transition"
                       aria-label="Eliminar registro"
                     >
                       ✕

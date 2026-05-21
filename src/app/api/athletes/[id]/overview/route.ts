@@ -13,13 +13,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const athlete = await prisma.athlete.findUnique({
     where: { id },
     include: {
-      checkIns: { orderBy: { date: 'desc' }, take: 12 },
-      dailyLogs: { orderBy: { date: 'desc' }, take: 90 },
+      checkIns: { orderBy: { date: 'desc' }, take: 12, select: { id: true, weekLabel: true, date: true, weightKg: true, stepsAvg: true, sleepHours: true, adherencePct: true, sensations: true, notes: true, coachNote: true } },
+      dailyLogs: { orderBy: { date: 'desc' }, take: 50, select: { date: true, weightKg: true, sleepHours: true, steps: true } }, // Reduced from 90
       plans: {
         where: { deletedAt: null },
-        include: {
-          sessions: { include: { exercises: true } },
-        },
+        select: { id: true, title: true, weekLabel: true, createdAt: true, _count: { select: { sessions: true } } }, // No nested sessions/exercises
         orderBy: { createdAt: 'desc' },
         take: 5,
       },
@@ -27,11 +25,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         where: { deletedAt: null },
         orderBy: { createdAt: 'desc' },
         take: 3,
-        include: { meals: { include: { foods: true } } },
+        select: { id: true, title: true, phase: true, kcalTarget: true, proteinG: true, carbsG: true, fatG: true, isActive: true, notes: true }, // No nested meals/foods
       },
-      sessionLogs: { orderBy: { date: 'desc' }, take: 30 },
-      documents: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 10 },
-      bodyMeasurements: { orderBy: { date: 'asc' }, take: 52 },
+      sessionLogs: { orderBy: { date: 'desc' }, take: 30, select: { id: true, sessionName: true, date: true, durationMin: true, kcalBurned: true, heartRateAvg: true, source: true } },
+      documents: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 10, select: { id: true, title: true, category: true, fileName: true, createdAt: true } },
+      bodyMeasurements: { orderBy: { date: 'asc' }, take: 13, select: { id: true, date: true, weightKg: true, bodyFatPct: true, waistCm: true, hipCm: true, chestCm: true, armCm: true, quadCm: true, calfCm: true, glutesCm: true, neckCm: true, notes: true } }, // Reduced from 52 to ~weekly
       contextProfile: { select: { restrictedFoodsJson: true, restrictedExercises: true } },
     },
   })
@@ -203,36 +201,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       id: p.id,
       title: p.title,
       weekLabel: p.weekLabel,
-      sessionsCount: p.sessions.length,
+      sessionsCount: p._count.sessions,
       createdAt: p.createdAt.toISOString().split('T')[0],
-      sessions: p.sessions
-        .sort((a, b) => a.order - b.order)
-        .map((s) => ({
-          id: s.id,
-          name: s.name,
-          block: s.block,
-          exercises: s.exercises
-            .sort((a, b) => a.order - b.order)
-            .map((e) => ({
-              id: e.id,
-              exercise: e.exercise,
-              sets: e.sets,
-              reps: e.reps,
-              targetRir: e.targetRir,
-              restSeconds: e.restSeconds,
-              notes: e.notes,
-              loadKg: e.loadKg,
-              loadNote: e.loadNote,
-              technique: e.technique,
-              techniqueDetail: e.techniqueDetail,
-              coachCue: e.coachCue,
-              progressionNote: e.progressionNote,
-              videoUrl: e.videoUrl,
-              tempoEcc: e.tempoEcc,
-              tempoPause: e.tempoPause,
-              tempoConc: e.tempoConc,
-            })),
-        })),
     })),
     nutritionPlans: athlete.nutritionPlans.map((n) => ({
       id: n.id,
@@ -244,25 +214,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       fatG: n.fatG,
       isActive: n.isActive,
       notes: n.notes,
-      meals: n.meals
-        .sort((a, b) => a.order - b.order)
-        .map((m) => ({
-          id: m.id,
-          name: m.name,
-          time: m.time,
-          foods: m.foods
-            .sort((a, b) => a.order - b.order)
-            .map((f) => ({
-              id: f.id,
-              food: f.food,
-              quantity: f.quantity,
-              unit: f.unit,
-              kcal: f.kcal,
-              proteinG: f.proteinG,
-              carbsG: f.carbsG,
-              fatG: f.fatG,
-            })),
-        })),
     })),
     recentSessions: athlete.sessionLogs.map((s) => ({
       id: s.id,

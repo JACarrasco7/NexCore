@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { NotificationDeliveryStatus } from "@prisma/client";
+import { parseJsonOrError } from "@/lib/api/json-parser";
+import { badRequest, forbidden } from "@/lib/api/error-response";
 
 function mapResendEvent(event: string | null): NotificationDeliveryStatus {
   switch (event?.toLowerCase()) {
@@ -24,12 +26,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await request.json().catch(() => ({}));
+  const parsed = await parseJsonOrError(request)
+  if (!parsed.ok) return parsed.error
+  const body = parsed.data as any
   const event = (body.event as string | null) ?? null;
   const messageId = body?.message?.id ?? body?.id ?? null;
 
   if (!messageId) {
-    return NextResponse.json({ error: "message.id requerido" }, { status: 400 });
+    return badRequest("message.id requerido");
   }
 
   const status = mapResendEvent(event);

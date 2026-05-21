@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { apiFetch, apiPost } from '@/lib/store'
 
 import { DEFAULT_LAYOUT, TAB_META, type LayoutState, type TabKey } from "@/lib/dashboard-config";
 import { useToast } from "@/components/ui/toast";
@@ -40,25 +41,28 @@ export function CoachAthleteDashboardSettings({ athleteId }: { athleteId: string
     let active = true;
 
     async function load() {
-      const [presetResponse, targetResponse] = await Promise.all([
-        fetch(`/api/dashboard/preset?athleteId=${athleteId}`).catch(() => null),
-        fetch(`/api/nutrition-targets?athleteId=${athleteId}`).catch(() => null),
-      ]);
+      try {
+        const [presetData, targetData] = await Promise.all([
+          apiFetch<{ source: string; layout: LayoutState } | null>(`/api/dashboard/preset?athleteId=${athleteId}`).catch(() => null),
+          apiFetch<NutritionTarget | null>(`/api/nutrition-targets?athleteId=${athleteId}`).catch(() => null),
+        ])
 
-      if (!active) return;
+        if (!active) return;
 
-      if (presetResponse?.ok) {
-        const preset = await presetResponse.json() as { source: string; layout: LayoutState };
-        setLayout(preset.layout);
-        setLayoutSource(preset.source);
+        if (presetData) {
+          setLayout(presetData.layout)
+          setLayoutSource(presetData.source)
+        }
+
+        if (targetData) {
+          setTargets(targetData)
+        }
+
+        setLoading(false)
+      } catch (err) {
+        // ignore
+        setLoading(false)
       }
-
-      if (targetResponse?.ok) {
-        const target = await targetResponse.json() as NutritionTarget;
-        setTargets(target);
-      }
-
-      setLoading(false);
     }
 
     void load();
@@ -71,39 +75,28 @@ export function CoachAthleteDashboardSettings({ athleteId }: { athleteId: string
 
   async function savePreset() {
     setSavingPreset(true);
-    const response = await fetch("/api/dashboard/preset", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ athleteId, ...layout }),
-    }).catch(() => null);
-    setSavingPreset(false);
-
-    if (!response?.ok) {
+    try {
+      await apiPost("/api/dashboard/preset", { athleteId, ...layout });
+      setLayoutSource("preset");
+      pushToast({ title: "Vista inicial guardada", variant: "success" });
+    } catch {
       pushToast({ title: "No se pudo guardar la vista inicial", variant: "error" });
-      return;
+    } finally {
+      setSavingPreset(false);
     }
-
-    setLayoutSource("preset");
-    pushToast({ title: "Vista inicial guardada", variant: "success" });
   }
 
   async function saveTargets() {
     setSavingTargets(true);
-    const response = await fetch("/api/nutrition-targets", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(targets),
-    }).catch(() => null);
-    setSavingTargets(false);
-
-    if (!response?.ok) {
+    try {
+      const payload = await apiPost<NutritionTarget>("/api/nutrition-targets", targets);
+      setTargets(payload);
+      pushToast({ title: "Objetivos diarios guardados", variant: "success" });
+    } catch {
       pushToast({ title: "No se pudieron guardar los objetivos", variant: "error" });
-      return;
+    } finally {
+      setSavingTargets(false);
     }
-
-    const payload = await response.json() as NutritionTarget;
-    setTargets(payload);
-    pushToast({ title: "Objetivos diarios guardados", variant: "success" });
   }
 
   return (

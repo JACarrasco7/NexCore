@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { PageShell, PageHeader } from '@/components/layout'
@@ -26,7 +26,7 @@ interface BillingPlan {
   createdAt: string
 }
 
-export default function TeamBillingPage() {
+function TeamBillingContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -460,5 +460,13 @@ export default function TeamBillingPage() {
         )}
       </div>
     </PageShell>
+  )
+}
+
+export default function TeamBillingPage() {
+  return (
+    <Suspense fallback={null}>
+      <TeamBillingContent />
+    </Suspense>
   )
 }

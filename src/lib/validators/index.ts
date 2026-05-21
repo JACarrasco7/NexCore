@@ -120,14 +120,13 @@ const exercisePrescriptionSchema = z.object({
 
 const workoutSessionSchema = z.object({
   name: z.string().min(1).max(200),
-  block: z.string().max(100).optional().default(""),
   order: z.number().int().min(0).optional(),
   exercises: z.array(exercisePrescriptionSchema).optional().default([]),
 });
 
 export const planSchema = z.object({
   athleteId: z.string().min(1),
-  coachId: z.string().min(1),
+  block: z.string().max(100).optional().default(""),
   title: z.string().min(1).max(200),
   weekLabel: z.string().min(1).max(100),
   sessions: z.array(workoutSessionSchema).optional().default([]),
@@ -210,3 +209,15 @@ export const nutritionTargetSchema = z.object({
 
 export type DashboardLayoutInput = z.infer<typeof dashboardLayoutSchema>;
 export type NutritionTargetInput = z.infer<typeof nutritionTargetSchema>;
+
+// ─── Notification ─────────────────────────────────────────────────────────────
+export const notificationSchema = z.object({
+  userId: z.string().min(1),
+  title: z.string().min(1).max(200),
+  body: z.string().max(5000).optional().nullable(),
+  link: z.string().max(500).optional().nullable(),
+  type: z.enum(["CHECK_IN_RESPONDED", "COACH_NOTE", "NEW_MESSAGE", "PR_ACHIEVED", "PLAN_ASSIGNED", "REMINDER_CHECK_IN", "ALERT_ADHERENCE_LOW", "ALERT_SLEEP_LOW", "SYSTEM"]).optional().default("SYSTEM"),
+  read: z.boolean().optional().default(false),
+});
+
+export type NotificationInput = z.infer<typeof notificationSchema>;

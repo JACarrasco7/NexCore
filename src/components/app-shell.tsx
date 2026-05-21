@@ -9,6 +9,7 @@ import { UserMenu } from '@/components/user-menu'
 import { FloatingChat } from '@/components/floating-chat'
 import { NotificationBell } from '@/components/notification-bell'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { apiFetch } from '@/lib/store'
 
 type AppShellProps = {
   children: ReactNode
@@ -33,7 +34,8 @@ const COACH_NAV_GROUPS: NavGroup[] = [
     label: 'Entrenamiento',
     icon: '🏋️',
     routes: [
-      { href: '/coach/plans/new', label: 'Crear plan', icon: '✍️' },
+      { href: '/coach/plans/new', label: 'Crear plan de entrenamiento', icon: '✍️' },
+      { href: '/athlete/exercises', label: 'Biblioteca de ejercicios', icon: '📚' },
       { href: '/coach/import-lab', label: 'Importar rutinas (CSV)', icon: '📥' },
     ],
   },
@@ -41,6 +43,7 @@ const COACH_NAV_GROUPS: NavGroup[] = [
     label: 'Nutrición',
     icon: '🥗',
     routes: [
+      { href: '/coach/nutrition/new', label: 'Crear plan nutricional', icon: '✍️' },
       { href: '/coach/nutrition', label: 'Planes de nutrición', icon: '🥗' },
       { href: '/coach/import-lab/nutrition', label: 'Importar nutrición', icon: '📥' },
     ],
@@ -51,6 +54,8 @@ const COACH_NAV_GROUPS: NavGroup[] = [
     routes: [
       { href: '/coach/team', label: 'Gestión de equipo', icon: '👨‍💼' },
       { href: '/coach/team/billing', label: 'Facturación', icon: '💳' },
+      { href: '/coach/team/phases', label: 'Fases', icon: '🧭' },
+      { href: '/coach/team/tags', label: 'Etiquetas', icon: '🏷️' },
       { href: '/coach/service-plans', label: 'Planes de servicio', icon: '💎' },
       { href: '/coach/wall', label: 'Muro del equipo', icon: '📢' },
     ],
@@ -64,6 +69,7 @@ const ATHLETE_NAV_GROUPS: NavGroup[] = [
     routes: [
       { href: '/athlete/plan', label: 'Mi rutina', icon: '🏋️' },
       { href: '/athlete/training-log', label: 'Registro de entrenamientos', icon: '📝' },
+      { href: '/athlete/exercises', label: 'Biblioteca de ejercicios', icon: '📚' },
     ],
   },
   {
@@ -92,6 +98,11 @@ const ATHLETE_NAV_GROUPS: NavGroup[] = [
       { href: '/athlete/wall', label: 'Muro del equipo', icon: '📢' },
     ],
   },
+  {
+    label: 'Configuración',
+    icon: '⚙️',
+    routes: [{ href: '/athlete/profile', label: 'Mi perfil', icon: '⚙️' }],
+  },
 ]
 
 export function AppShell({ children }: AppShellProps) {
@@ -115,9 +126,8 @@ export function AppShell({ children }: AppShellProps) {
       pathname.startsWith('/register')
     )
       return
-    fetch('/api/me/profile-status')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { hasProfile: boolean; role: string } | null) => {
+    apiFetch('/api/me/profile-status')
+      .then((d: any) => {
         if (d && !d.hasProfile) router.push('/onboarding')
       })
       .catch(() => {})
@@ -128,10 +138,9 @@ export function AppShell({ children }: AppShellProps) {
     if (!session?.user) return
     let active = true
     async function refresh() {
-      const r = await fetch('/api/messages/unread-count').catch(() => null)
-      if (r?.ok && active) {
-        const d = (await r.json()) as { count: number }
-        setUnread(d.count)
+      const d = await apiFetch('/api/messages/unread-count').catch(() => null)
+      if (d && active) {
+        setUnread((d as any).count ?? 0)
       }
     }
     refresh()
@@ -155,8 +164,10 @@ export function AppShell({ children }: AppShellProps) {
 
   // Cerrar menú al navegar
   useEffect(() => {
-    setMenuOpen(false)
-  }, [pathname])
+    if (menuOpen) {
+      setMenuOpen(false)
+    }
+  }, [pathname, menuOpen])
 
   function isActive(href: string): boolean {
     return pathname === href || (href !== '/' && pathname.startsWith(href) && href.length > 1)
@@ -350,7 +361,7 @@ export function AppShell({ children }: AppShellProps) {
         className={`border-line mt-auto border-t ${pathname.startsWith('/coach') || pathname.startsWith('/athlete') ? '' : ''}`}
       >
         <div
-          className={`text-foreground/45 mx-auto flex w-full max-w-[1480px] items-center justify-between gap-2 px-6 text-xs md:px-10 lg:px-12 ${pathname.startsWith('/coach') || pathname.startsWith('/athlete') ? 'py-2' : 'flex-col py-5 lg:flex-row'}`}
+          className={`text-foreground/45 mx-auto flex w-full max-w-370 items-center justify-between gap-2 px-6 text-xs md:px-10 lg:px-12 ${pathname.startsWith('/coach') || pathname.startsWith('/athlete') ? 'py-2' : 'flex-col py-5 lg:flex-row'}`}
         >
           <div className="flex items-center gap-2">
             <span className="from-accent to-accent-strong flex h-5 w-5 items-center justify-center rounded bg-linear-to-br text-[9px] font-bold text-white">

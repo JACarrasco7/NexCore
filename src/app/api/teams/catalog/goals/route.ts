@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { DEFAULT_GOALS } from "@/app/api/teams/catalog/route";
 import { resolveAdminTeamId } from "@/lib/api/auth-helpers";
+import { parseJsonOrError } from '@/lib/api/json-parser'
 
 export const dynamic = "force-dynamic";
 
@@ -45,15 +46,17 @@ export async function PUT(request: Request) {
   const teamId = searchParams.get("teamId") ?? (await resolveAdminTeamId(session.user.id));
   if (!teamId) return NextResponse.json({ error: "Equipo no encontrado" }, { status: 404 });
 
-  const body = await request.json() as Array<{
+  const parseResult = await parseJsonOrError(request)
+  if (!parseResult.ok) return parseResult.error
+  const body = parseResult.data as Array<{
     code: string;
     label: string;
     description?: string;
     isVisible?: boolean;
     order?: number;
-  }>;
+  }>
 
-  if (!Array.isArray(body)) return NextResponse.json({ error: "Se esperaba un array" }, { status: 400 });
+  if (!Array.isArray(body)) return NextResponse.json({ error: "Se esperaba un array" }, { status: 400 })
 
   const results = await Promise.all(
     body.map((g) =>

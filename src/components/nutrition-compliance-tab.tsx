@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { apiFetch } from "@/lib/store";
 
 type NutritionLog = {
   id: string;
@@ -60,23 +61,31 @@ export function NutritionComplianceTab({ athleteId }: { athleteId: string }) {
     async function loadData() {
       setLoading(true);
       try {
-        const [logsRes, plansRes] = await Promise.all([
-          fetch(`/api/nutrition-logs?athleteId=${athleteId}`),
-          fetch(`/api/nutrition-plans?athleteId=${athleteId}`),
-        ]);
-        if (logsRes.ok) {
-          const payload = await logsRes.json() as { items?: NutritionLog[] } | NutritionLog[];
-          setLogs(Array.isArray(payload) ? payload : (payload.items ?? []));
-        }
-        if (plansRes.ok) {
-          const plans: NutritionPlan[] = await plansRes.json();
-          setPlan(plans[0] ?? null);
-        }
+        const [logsData, plansData] = await Promise.all([
+          apiFetch<any>(`/api/nutrition-logs?athleteId=${athleteId}`).catch(() => []),
+            apiFetch<any>(`/api/nutrition-plans?athleteId=${athleteId}`).catch(() => []),
+        ])
+
+        // Normalize logs (array or { items: [] })
+        let normalizedLogs: NutritionLog[] = []
+        if (Array.isArray(logsData)) normalizedLogs = logsData as NutritionLog[]
+        else normalizedLogs = (logsData?.items ?? []) as NutritionLog[]
+        setLogs(normalizedLogs)
+
+        // Normalize plans (array or wrapper)
+        let plansArr: NutritionPlan[] = []
+        if (Array.isArray(plansData)) plansArr = plansData as NutritionPlan[]
+        else plansArr = (plansData?.items ?? plansData?.plans ?? []) as NutritionPlan[]
+        setPlan(plansArr[0] ?? null)
+      } catch (err) {
+        console.error(err)
+        setLogs([])
+        setPlan(null)
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
     }
-    void loadData();
+    void loadData()
   }, [athleteId]);
 
   if (loading) return <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8 rounded-lg" />)}</div>;

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useEffect, useMemo, useState } from "react";
-import { useCheckIns, useDailyLogs, useNutritionPlans, useSessionLogs } from "@/lib/store";
+import { apiFetch, apiPost, useCheckIns, useDailyLogs, useNutritionPlans, useSessionLogs } from "@/lib/store";
 import type { AthleteProfile, SessionLog } from "@/lib/domain";
 import { CoachAthleteDashboardSettings } from "@/components/coach-athlete-dashboard-settings";
 import { DocumentPanel } from "@/components/document-panel";
@@ -69,14 +69,13 @@ function useAthlete(id: string) {
   const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/athletes/${id}`)
-      .then((r) => {
-        if (r.status === 403) { setForbidden(true); setLoading(false); return null; }
-        if (r.status === 404) { setNotFound(true); setLoading(false); return null; }
-        return r.json();
-      })
-      .then((data) => { if (data) setAthlete(data); setLoading(false); })
-      .catch(() => { setNotFound(true); setLoading(false); });
+    apiFetch<AthleteProfile>(`/api/athletes/${id}`)
+      .then((data) => { setAthlete(data); setLoading(false); })
+      .catch((err) => {
+        if (err?.message?.includes('403')) setForbidden(true);
+        else setNotFound(true);
+        setLoading(false);
+      });
   }, [id]);
 
   return { athlete, loading, notFound, forbidden };
@@ -89,14 +88,12 @@ function CoachNoteInline({ checkInId, initial }: { checkInId: string; initial?: 
 
   async function save() {
     setSaving(true);
-    await fetch(`/api/check-ins/${checkInId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ coachNote: note }),
-    });
+    try {
+      await apiPost(`/api/check-ins/${checkInId}`, { coachNote: note });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {}
     setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
   }
 
   return (
@@ -302,7 +299,7 @@ export default function AthleteProfilePage({
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-[1480px] flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
+    <main className="mx-auto flex w-full max-w-370 flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
 
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-foreground/50">

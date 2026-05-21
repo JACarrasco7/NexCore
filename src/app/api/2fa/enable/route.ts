@@ -4,6 +4,7 @@ import { verifyToken, generateBackupCodes } from "@/lib/totp";
 import { prisma } from "@/lib/prisma";
 import { setBackupCodesForUser } from "@/lib/backup-codes";
 import { checkRateLimit, getClientIp, getRateLimitKey, LIMITS } from "@/lib/rate-limit";
+import { parseJsonOrError } from "@/lib/api/json-parser";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,7 +17,9 @@ export async function POST(request: NextRequest) {
     const rl = await checkRateLimit(key, LIMITS.OTP.maxRequests, LIMITS.OTP.windowSeconds);
     if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
-    const body = await request.json().catch(() => ({}));
+    const parseResult = await parseJsonOrError(request);
+    if (!parseResult.ok) return parseResult.error;
+    const body = parseResult.data as any;
     const { token } = body;
     if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
 

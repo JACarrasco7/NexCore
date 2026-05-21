@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { parseJsonOrError } from '@/lib/api/json-parser';
 import { resolveAdminTeamId } from "@/lib/api/auth-helpers";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,9 @@ export async function POST(request: Request) {
   const teamId = searchParams.get("teamId") ?? (await resolveAdminTeamId(session.user.id));
   if (!teamId) return NextResponse.json({ error: "Equipo no encontrado" }, { status: 404 });
 
-  const body = await request.json() as {
+  const parseResult = await parseJsonOrError(request);
+  if (!parseResult.ok) return parseResult.error;
+  const body = parseResult.data as {
     code?: string;
     label: string;
     description?: string;

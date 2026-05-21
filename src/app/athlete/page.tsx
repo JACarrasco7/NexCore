@@ -31,7 +31,7 @@ const goalTones: Record<string, string> = {
 
 function AthleteAside({ profile }: { profile: AthleteProfile }) {
   return (
-    <aside className="hidden w-[260px] shrink-0 gap-3 overflow-y-auto pt-8 pb-6 pl-6 md:pl-10 lg:pl-12 xl:sticky xl:top-24 xl:flex xl:h-[calc(100vh-120px)] xl:flex-col xl:self-start">
+    <aside className="hidden w-65 shrink-0 gap-3 overflow-y-auto pt-8 pb-6 pl-6 md:pl-10 lg:pl-12 xl:sticky xl:top-24 xl:flex xl:h-[calc(100vh-120px)] xl:flex-col xl:self-start">
       {/* Identity card */}
       <div className="border-line bg-surface rounded-2xl border p-5 shadow-sm">
         <div className="flex items-center gap-3">
@@ -146,7 +146,7 @@ export default function AthleteDashboardPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1480px] xl:gap-6">
+    <div className="mx-auto flex w-full max-w-370 xl:gap-6">
       {profile && <AthleteAside profile={profile} />}
       <div className="min-w-0 flex-1">
         {profile && !profile.emailVerified && (

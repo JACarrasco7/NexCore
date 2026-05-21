@@ -11,13 +11,25 @@ import type {
   TrainingPlan,
 } from '@/lib/domain'
 
-async function apiFetch<T>(url: string): Promise<T> {
+export async function apiFetch<T>(url: string): Promise<T> {
   const res = await fetch(url)
   if (!res.ok) throw new Error(`API ${url} -> ${res.status}`)
-  return res.json() as Promise<T>
+  const data = await res.json()
+
+  // Normalize common wrapper shapes: array, { items: [] }, { athletes: [] }, etc.
+  if (Array.isArray(data)) return data as T
+  if (data && typeof data === 'object') {
+    const anyData = data as Record<string, unknown>
+    if (Array.isArray(anyData.items)) return anyData.items as T
+    if (Array.isArray(anyData.results)) return anyData.results as T
+    if (Array.isArray(anyData.athletes)) return anyData.athletes as T
+    if (Array.isArray(anyData.plans)) return anyData.plans as T
+  }
+
+  return data as T
 }
 
-async function apiPost<T>(url: string, body: unknown): Promise<T> {
+export async function apiPost<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -39,7 +51,7 @@ export function useAthletes(coachId?: string) {
     const url = coachId ? `/api/athletes?coachId=${coachId}` : '/api/athletes'
     apiFetch<any>(url)
       .then((data) => {
-        const items = Array.isArray(data) ? data : (data?.athletes ?? [])
+        const items = Array.isArray(data) ? data : (data?.items ?? data?.athletes ?? [])
         setAthletes(items as AthleteProfile[])
       })
       .catch((err) => {

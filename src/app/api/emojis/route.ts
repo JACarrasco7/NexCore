@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { z } from "zod";
+import { badRequest, unauthorized } from "@/lib/api/error-response";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +17,24 @@ const EMOJI_GROUPS: EmojiGroup[] = [
   { group: "Nutrición", items: ["🥗", "🍗", "🍚", "🥔", "💧", "☕", "🍎", "🍌"] },
 ];
 
+const emojiQuerySchema = z.object({
+  q: z.string().max(50).optional().default(""),
+});
+
 export async function GET(req: NextRequest) {
-  const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
+  const session = await auth();
+  if (!session?.user?.id) return unauthorized();
+
+  // Validate query params
+  const parsed = emojiQuerySchema.safeParse({
+    q: req.nextUrl.searchParams.get("q"),
+  });
+
+  if (!parsed.success) {
+    return badRequest("Parámetro 'q' inválido");
+  }
+
+  const q = parsed.data.q;
   if (!q) return NextResponse.json(EMOJI_GROUPS);
 
   const filtered = EMOJI_GROUPS

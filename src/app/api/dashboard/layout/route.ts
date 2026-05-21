@@ -3,6 +3,8 @@ import { auth } from "@/auth";
 import { DEFAULT_LAYOUT, sanitizeLayout } from "@/lib/dashboard-config";
 import { prisma } from "@/lib/prisma";
 import { dashboardLayoutSchema } from "@/lib/validators";
+import { parseJsonOrError } from '@/lib/api/json-parser'
+import { unauthorized, badRequest } from '@/lib/api/error-response'
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +25,7 @@ export async function GET() {
     select: { id: true, coachId: true },
   });
 
-  if (athlete) {
+  if (athlete?.coachId) {
     const preset = await prisma.coachDashboardPreset.findUnique({
       where: { coachId_athleteId: { coachId: athlete.coachId, athleteId: athlete.id } },
     });
@@ -41,12 +43,13 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  if (!session?.user?.id) return unauthorized('No autenticado')
 
-  const body = await request.json().catch(() => ({}));
-  const parsed = dashboardLayoutSchema.safeParse(body);
+  const parsedBody = await parseJsonOrError(request)
+  if (!parsedBody.ok) return parsedBody.error
+  const parsed = dashboardLayoutSchema.safeParse(parsedBody.data)
   if (!parsed.success) {
-    return NextResponse.json({ error: "Layout inválido", details: parsed.error.flatten().fieldErrors }, { status: 422 });
+    return badRequest('Layout inválido', parsed.error.flatten().fieldErrors)
   }
 
   const layout = sanitizeLayout(parsed.data);

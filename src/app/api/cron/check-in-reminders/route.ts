@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 6);
 
-  // Atletas cuyo último check-in es anterior al cutoff (o no tienen ninguno)
+  // Batch fetch: Get athletes + latest checkIn per athlete in 1 query (using select with take)
   const athletes = await prisma.athlete.findMany({
     select: {
       id: true,

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
 import { z } from 'zod'
+import { parseJsonOrError } from '@/lib/api/json-parser'
 
 export const dynamic = 'force-dynamic'
 
@@ -105,8 +106,9 @@ export async function PUT(
       return NextResponse.json({ error: 'Billing plan not found' }, { status: 404 })
     }
 
-    const body = await request.json()
-    const validated = UpdateBillingPlanSchema.parse(body)
+    const parseResult = await parseJsonOrError(request)
+    if (!parseResult.ok) return parseResult.error
+    const validated = UpdateBillingPlanSchema.parse(parseResult.data)
 
     // Update plan
     const updated = await prisma.teamBillingPlan.update({

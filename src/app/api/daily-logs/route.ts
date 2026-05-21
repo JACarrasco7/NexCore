@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { assertAthleteAccess, requireSession, requireAthleteId, paginationSchema, buildPaginationResponse } from "@/lib/api";
 import { dailyLogSchema } from "@/lib/validators";
+import { parseJsonOrError } from "@/lib/api/json-parser";
 
 export const dynamic = "force-dynamic";
 
@@ -20,11 +21,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
   }
 
+  const takeParam = searchParams.get('take') ?? searchParams.get('limit') ?? undefined
+  const cursorParam = searchParams.get('cursor') ?? undefined
   const pagination = paginationSchema.safeParse({
-    take: searchParams.get("take") ?? 90,
-    cursor: searchParams.get("cursor") ?? undefined,
-    from: searchParams.get("from") ?? undefined,
-    to: searchParams.get("to") ?? undefined,
+    take: takeParam,
+    cursor: cursorParam,
+    from: searchParams.get('from') ?? undefined,
+    to: searchParams.get('to') ?? undefined,
   });
   const { take, cursor, from, to } = pagination.success ? pagination.data : { take: 90, cursor: undefined, from: undefined, to: undefined };
 
@@ -67,7 +70,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const result = await parseJsonOrError(request);
+  if (!result.ok) return result.error;
+  const body = result.data as any; // Already validated by parseJsonOrError
 
   const parsed = dailyLogSchema.safeParse(body);
   if (!parsed.success) {

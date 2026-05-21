@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { apiPost } from '@/lib/store';
+import { apiFetch } from '@/lib/store'
 import {
   DEFAULT_ATHLETE_CONTEXT,
   type AthleteContextProfileData,
@@ -69,11 +71,10 @@ export function AthleteContextPanel({ athleteId }: Props) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/athletes/${athleteId}/context`)
-      .then((r) => (r.ok ? r.json() : DEFAULT_ATHLETE_CONTEXT))
+    apiFetch<AthleteContextProfileData>(`/api/athletes/${athleteId}/context`)
       .then((payload) => {
         if (cancelled) return;
-        setData({ ...DEFAULT_ATHLETE_CONTEXT, ...payload });
+        setData({ ...DEFAULT_ATHLETE_CONTEXT, ...(payload ?? DEFAULT_ATHLETE_CONTEXT) });
       })
       .finally(() => {
         if (cancelled) return;
@@ -90,17 +91,14 @@ export function AthleteContextPanel({ athleteId }: Props) {
     setMachineImageError("");
     const { gymMachines: _ignoredGymMachines, ...coachEditablePayload } = data;
 
-    const res = await fetch(`/api/athletes/${athleteId}/context`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(coachEditablePayload),
-    });
-
-    if (res.ok) {
-      const payload = await res.json();
-      setData(payload);
+    try {
+      const payload = await apiPost<AthleteContextProfileData>(`/api/athletes/${athleteId}/context`, coachEditablePayload)
+      setData(payload)
+    } catch (err) {
+      // ignore
+    } finally {
+      setSaving(false)
     }
-    setSaving(false);
   }
 
   const e1rm = useMemo(() => {

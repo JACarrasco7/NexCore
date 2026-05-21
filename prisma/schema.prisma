@@ -8,51 +8,59 @@ generator client {
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+  // Connection pooling
+  directUrl       = env("DATABASE_URL_DIRECT")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+  // connectionLimit removed — unsupported property in this Prisma version
 }
 
 // ─── Auth (NextAuth.js / @auth/prisma-adapter) ───────────────────────────────
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  passwordHash  String?
+  id                   String    @id @default(cuid())
+  name                 String?
+  email                String    @unique
+  emailVerified        DateTime?
+  image                String?
+  passwordHash         String?
   // TOTP 2FA
-  totpSecret    String?   @db.Text
-  pendingTotpSecret String? @db.Text
+  totpSecret           String?   @db.Text
+  pendingTotpSecret    String?   @db.Text
   pendingTotpExpiresAt DateTime?
-  totpEnabled   Boolean   @default(false)
-  backupCodes   Json?
-  role          Role      @default(ATHLETE)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  totpEnabled          Boolean   @default(false)
+  backupCodes          Json?
+  role                 Role      @default(ATHLETE)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   // Relaciones
-  isActive      Boolean   @default(true)
+  isActive Boolean @default(true)
 
-  coachProfile  Coach?
+  coachProfile   Coach?
   athleteProfile Athlete?
 
-  accounts      Account[]
-  sessions      Session[]
-  messagesSent  Message[]     @relation("MessageFrom")
-  messagesRecv  Message[]     @relation("MessageTo")
-  notifications Notification[]
+  accounts             Account[]
+  sessions             Session[]
+  messagesSent         Message[]             @relation("MessageFrom")
+  messagesRecv         Message[]             @relation("MessageTo")
+  notifications        Notification[]
   notificationSettings NotificationSettings?
-  teamPosts     TeamPost[]
-  postComments  PostComment[]
-  dashboardLayout DashboardLayout?
-  updatedMacroTargets AthleteMacroTarget[] @relation("MacroTargetUpdatedBy")
-  teamMemberships TeamUserMembership[]
-  
+  teamPosts            TeamPost[]
+  postComments         PostComment[]
+  dashboardLayout      DashboardLayout?
+  updatedMacroTargets  AthleteMacroTarget[]  @relation("MacroTargetUpdatedBy")
+  teamMemberships      TeamUserMembership[]
+
   // Fase 1: OTP, Audit, Signatures
-  otpTokens     OtpToken[]
-  auditLogs     AuditLog[]
+  otpTokens          OtpToken[]
+  auditLogs          AuditLog[]
   documentSignatures DocumentSignature[]
-  sentInvites     CoachInvite[] @relation("CoachInvitesSent")
-  acceptedInvites CoachInvite[] @relation("CoachInvitesAccepted")
+  sentInvites        CoachInvite[]       @relation("CoachInvitesSent")
+  acceptedInvites    CoachInvite[]       @relation("CoachInvitesAccepted")
+  invoicesCreated    Invoice[]           @relation("InvoicesCreatedBy")
+
+  // LLM
+  llmCalls           LlmCall[]
 }
 
 enum Role {
@@ -106,6 +114,41 @@ enum VerificationMethod {
   SMS
 }
 
+enum CoachSubscriptionStatus {
+  TRIAL
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  EXPIRED
+  CANCELLED
+}
+
+enum AthletePaymentMethod {
+  MANUAL
+  STRIPE
+  CASH
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum InvoiceEntityType {
+  COACH
+  ATHLETE
+}
+
+enum AthleteSubscriptionStatus {
+  TRIAL
+  ACTIVE
+  INACTIVE
+  CANCELED
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -144,27 +187,27 @@ model VerificationToken {
 // ─── Coach ────────────────────────────────────────────────────────────────────
 
 model Coach {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  displayName String
-  phone       String?
-  phoneVerified Boolean @default(false)
-  phoneVerificationToken String? @db.VarChar(255)
-  bio         String?  @db.Text
-  createdAt   DateTime @default(now())
-  trialStartsAt DateTime @default(now())
-  trialEndsAt DateTime
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  displayName            String
+  phone                  String?
+  phoneVerified          Boolean  @default(false)
+  phoneVerificationToken String?  @db.VarChar(255)
+  bio                    String?  @db.Text
+  createdAt              DateTime @default(now())
+  trialStartsAt          DateTime @default(now())
+  trialEndsAt            DateTime
 
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  athletes  Athlete[]
-  plans     Plan[]
-  nutritionPlans      NutritionPlan[]
-  nutritionTemplates  NutritionTemplate[]
-  servicePlans        ServicePlan[]
-  documents           Document[]
-  trainingTemplates   TrainingTemplate[]
-  dashboardPresets    CoachDashboardPreset[]
-  macroTargets        AthleteMacroTarget[]
+  user               User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  athletes           Athlete[]
+  plans              Plan[]
+  nutritionPlans     NutritionPlan[]
+  nutritionTemplates NutritionTemplate[]
+  servicePlans       ServicePlan[]
+  documents          Document[]
+  trainingTemplates  TrainingTemplate[]
+  dashboardPresets   CoachDashboardPreset[]
+  macroTargets       AthleteMacroTarget[]
 
   @@index([userId])
 }
@@ -172,46 +215,50 @@ model Coach {
 // ─── Athlete ──────────────────────────────────────────────────────────────────
 
 model Athlete {
-  id                 String   @id @default(cuid())
-  userId             String   @unique
-  coachId            String
-  teamId             String?
-  fullName           String
-  phone              String?
-  phoneVerified      Boolean  @default(false)
-  contactEmail       String?
-  verificationMethod VerificationMethod @default(EMAIL)
-  primaryComment     String?  @db.Text
-  goal               Goal     @default(VOLUMEN)
-  phaseLabel         String   @default("Semana 1")
-  measurementCadence TrackingCadence @default(CHECKIN)
+  id                   String             @id @default(cuid())
+  userId               String             @unique
+  coachId              String?
+  teamId               String?
+  fullName             String
+  phone                String?
+  phoneVerified        Boolean            @default(false)
+  contactEmail         String?
+  verificationMethod   VerificationMethod @default(EMAIL)
+  primaryComment       String?            @db.Text
+  goal                 Goal               @default(VOLUMEN)
+  phaseLabel           String             @default("Semana 1")
+  measurementCadence   TrackingCadence    @default(CHECKIN)
   measurementEveryDays Int?
-  reviewCadence      ReviewCadence @default(CHECKIN)
-  reviewEveryDays    Int?
-  healthConnections  String?  @db.Text  // JSON array serializado (legacy)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  reviewCadence        ReviewCadence      @default(CHECKIN)
+  reviewEveryDays      Int?
+  healthConnections    String?            @db.Text // JSON array serializado (legacy)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  coach          Coach          @relation(fields: [coachId], references: [id])
-  team           Team?          @relation(fields: [teamId], references: [id])
-  subscriptions  AthleteSubscription[]
-  checkIns         CheckIn[]
-  dailyLogs        DailyLog[]
-  sessionLogs      SessionLog[]
-  plans            Plan[]
-  nutritionPlans   NutritionPlan[]
-  documents        Document[]
-  bodyMeasurements BodyMeasurement[]
-  progressPhotos   ProgressPhoto[]
-  nutritionLogs    NutritionLog[]
-  dashboardPresets CoachDashboardPreset[]
-  macroTarget      AthleteMacroTarget?
-  exerciseNotes    ExerciseNote[]
-  contextProfile   AthleteContextProfile?
-  consents         AthleteConsent[]
+  user                    User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coach                   Coach?                 @relation(fields: [coachId], references: [id], onDelete: SetNull)
+  team                    Team?                  @relation(fields: [teamId], references: [id])
+  subscriptions           AthleteSubscription[]
+  checkIns                CheckIn[]
+  dailyLogs               DailyLog[]
+  sessionLogs             SessionLog[]
+  plans                   Plan[]
+  nutritionPlans          NutritionPlan[]
+  documents               Document[]
+  bodyMeasurements        BodyMeasurement[]
+  progressPhotos          ProgressPhoto[]
+  nutritionLogs           NutritionLog[]
+  dashboardPresets        CoachDashboardPreset[]
+  macroTarget             AthleteMacroTarget?
+  exerciseNotes           ExerciseNote[]
+  contextProfile          AthleteContextProfile?
+  consents                AthleteConsent[]
   healthConnectionRecords HealthConnection[]
-  
+  evolutionSetting        EvolutionSetting?
+  favoriteExercises       FavoriteExercise[]
+  favoriteFoods           FavoriteFood[]
+  nutritionPreference     NutritionPreference?
+
   // Fase 1: Document signatures
   documentSignatures DocumentSignature[]
 
@@ -223,23 +270,24 @@ model Athlete {
 }
 
 model Team {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String?  @unique
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  slug      String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // contractTemplate movido a TeamSettings (1:1)
-  contractTemplate String? @db.Text  // @deprecated — usar TeamSettings.contractTemplate
+  contractTemplate String? @db.Text // @deprecated — usar TeamSettings.contractTemplate
 
-  userMemberships TeamUserMembership[]
-  athletes    Athlete[]
-  goals       TeamGoal[]
-  phases      TeamPhase[]
-  invites     CoachInvite[]       @relation("CoachInvites")
-  posts       TeamPost[]
-  settings    TeamSettings?
-  billingPlans TeamBillingPlan[]
+  userMemberships    TeamUserMembership[]
+  athletes           Athlete[]
+  goals              TeamGoal[]
+  phases             TeamPhase[]
+  invites            CoachInvite[]        @relation("CoachInvites")
+  posts              TeamPost[]
+  settings           TeamSettings?
+  billingPlans       TeamBillingPlan[]
+  coachSubscriptions CoachSubscription[]
 }
 
 // ─── TeamSettings (configuración escalable por tenant) ────────────────────────
@@ -254,35 +302,35 @@ model TeamSettings {
   updatedAt DateTime @updatedAt
 
   // Identidad y branding
-  displayName       String?
-  logoUrl           String?
-  primaryColor      String?    // hex (#6366f1)
-  accentColor       String?
+  displayName  String?
+  logoUrl      String?
+  primaryColor String? // hex (#6366f1)
+  accentColor  String?
 
   // Localización
-  locale            String     @default("es-ES")
-  timezone          String     @default("Europe/Madrid")
-  currency          String     @default("EUR")
+  locale   String @default("es-ES")
+  timezone String @default("Europe/Madrid")
+  currency String @default("EUR")
 
   // Contacto
-  supportEmail      String?
-  legalEmail        String?
-  websiteUrl        String?
+  supportEmail String?
+  legalEmail   String?
+  websiteUrl   String?
 
   // Legal
-  contractTemplate  String?    @db.Text
-  privacyNotice     String?    @db.Text
-  termsNotice       String?    @db.Text
-  contractVersion   String     @default("1.0")
+  contractTemplate String? @db.Text
+  privacyNotice    String? @db.Text
+  termsNotice      String? @db.Text
+  contractVersion  String  @default("1.0")
 
   // Defaults operativos del team
-  defaultCheckinDays Int       @default(7)
-  defaultReviewDays  Int       @default(7)
+  defaultCheckinDays Int @default(7)
+  defaultReviewDays  Int @default(7)
 
   // Features flags y configuración extensible (JSON sin migración futura)
-  features          Json?      // { wall: true, healthConnections: true, nutrition: true, ... }
-  branding          Json?      // overrides finos de UI
-  metadata          Json?      // libre
+  features Json? // { wall: true, healthConnections: true, nutrition: true, ... }
+  branding Json? // overrides finos de UI
+  metadata Json? // libre
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 }
@@ -349,37 +397,133 @@ model TeamPhase {
 // ─── TeamBillingPlan (facturación por team) ─────────────────────────────────
 
 model TeamBillingPlan {
-  id              String   @id @default(cuid())
-  teamId          String
-  planName        String
-  description     String?  @db.Text
-  price           Float    @default(0)
-  currency        String   @default("EUR")
-  billingCycle    String   @default("MONTHLY") // MONTHLY, YEARLY, ONE_TIME
-  maxAthletes     Int?     // null = unlimited
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id           String   @id @default(cuid())
+  teamId       String
+  planName     String
+  description  String?  @db.Text
+  price        Float    @default(0)
+  currency     String   @default("EUR")
+  billingCycle String   @default("MONTHLY") // MONTHLY, YEARLY, ONE_TIME
+  maxAthletes  Int? // null = unlimited
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team                 Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  coachSubscriptions   CoachSubscription[]
+  athleteSubscriptions AthleteSubscription[]
 
   @@index([teamId])
   @@index([teamId, isActive])
 }
 
+// ─── CoachSubscription (coach paga a APP) ──────────────────────────────────────
+
+model CoachSubscription {
+  id                   String                  @id @default(cuid())
+  teamId               String
+  teamBillingPlanId    String
+  status               CoachSubscriptionStatus @default(TRIAL)
+  stripeSubscriptionId String?                 @unique
+  stripeCustomerId     String?
+  trialEndsAt          DateTime // 30 días desde creación
+  renewalDate          DateTime?
+  autoRenewal          Boolean                 @default(true)
+  lastRenewalAt        DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  team            Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamBillingPlan TeamBillingPlan @relation(fields: [teamBillingPlanId], references: [id], onDelete: Restrict)
+  invoices        Invoice[]
+
+  @@unique([teamId, teamBillingPlanId])
+  @@index([teamId, status])
+  @@index([status, trialEndsAt])
+  @@index([stripeSubscriptionId])
+}
+
+// ─── AthleteSubscription modificada (atleta asignado a plan) ───────────────────
+
+model AthleteSubscription {
+  id                String @id @default(cuid())
+  athleteId         String
+  teamBillingPlanId String
+
+  // Trial y estado
+  status      AthleteSubscriptionStatus @default(ACTIVE)
+  trialEndsAt DateTime? // 30 días si TRIAL, null si ya pasó
+
+  // Renovación y pagos
+  paymentMethod        AthletePaymentMethod @default(MANUAL)
+  stripeSubscriptionId String?
+  manualRenewal        Boolean              @default(false) // coach decide si renovación automática
+  renewalDate          DateTime?
+
+  // Timeline
+  startDate   DateTime  @default(now())
+  endDate     DateTime?
+  cancelledAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  athlete         Athlete         @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  teamBillingPlan TeamBillingPlan @relation(fields: [teamBillingPlanId], references: [id], onDelete: Restrict)
+  invoices        Invoice[]
+
+  @@unique([athleteId, teamBillingPlanId])
+  @@index([athleteId, status])
+  @@index([teamBillingPlanId, status])
+  @@index([status, trialEndsAt])
+}
+
+// ─── Invoice (facturas) ────────────────────────────────────────────────────────
+
+model Invoice {
+  id         String            @id @default(cuid())
+  entityType InvoiceEntityType // COACH o ATHLETE
+
+  // Referencias polimórficas
+  coachSubscriptionId   String?
+  athleteSubscriptionId String?
+
+  // Datos de factura
+  amount   Float
+  currency String        @default("EUR")
+  status   InvoiceStatus @default(DRAFT)
+  dueDate  DateTime
+  paidAt   DateTime?
+
+  // Auditoría
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdByUserId String?
+
+  coachSubscription   CoachSubscription?   @relation(fields: [coachSubscriptionId], references: [id], onDelete: SetNull)
+  athleteSubscription AthleteSubscription? @relation(fields: [athleteSubscriptionId], references: [id], onDelete: SetNull)
+  createdByUser       User?                @relation("InvoicesCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, status])
+  @@index([dueDate, status])
+  @@index([coachSubscriptionId])
+  @@index([athleteSubscriptionId])
+  @@index([createdAt])
+}
+
 // ─── CoachInvite (invitaciones pendientes al equipo) ──────────────────────────
 
 model CoachInvite {
-  id         String   @id @default(cuid())
-  teamId     String
-  invitedEmail String
-  invitedByUserId String
-  token      String   @unique @db.VarChar(255)
-  role       TeamRole @default(MEMBER)
-  expiresAt  DateTime
-  acceptedAt DateTime?
+  id               String    @id @default(cuid())
+  teamId           String
+  invitedEmail     String
+  invitedByUserId  String
+  token            String    @unique @db.VarChar(255)
+  role             TeamRole  @default(MEMBER)
+  expiresAt        DateTime
+  acceptedAt       DateTime?
   acceptedByUserId String?
-  createdAt  DateTime @default(now())
+  createdAt        DateTime  @default(now())
 
   team           Team  @relation("CoachInvites", fields: [teamId], references: [id], onDelete: Cascade)
   invitedByUser  User  @relation("CoachInvitesSent", fields: [invitedByUserId], references: [id], onDelete: Cascade)
@@ -391,47 +535,17 @@ model CoachInvite {
   @@index([acceptedAt])
 }
 
-// ─── AthleteSubscription (suscripción a plan de servicio) ────────────────────
-
-model AthleteSubscription {
-  id             String   @id @default(cuid())
-  athleteId      String
-  servicePlanId  String
-  status         SubscriptionStatus @default(ACTIVE)
-  startDate      DateTime @default(now())
-  endDate        DateTime?
-  cancelledAt    DateTime?
-  priceEurPaid   Float    @default(0)
-  notes          String?  @db.Text
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  athlete     Athlete     @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  servicePlan ServicePlan @relation(fields: [servicePlanId], references: [id], onDelete: Restrict)
-
-  @@index([athleteId, status])
-  @@index([servicePlanId])
-  @@index([status, endDate])
-}
-
-enum SubscriptionStatus {
-  ACTIVE
-  PAUSED
-  CANCELLED
-  EXPIRED
-}
-
 // ─── AthleteConsent (contrato legal aceptado digitalmente) ────────────────────
 
 model AthleteConsent {
   id           String    @id @default(cuid())
   athleteId    String
   version      String    @default("1.0")
-  content      String    @db.Text  // snapshot del contrato en el momento de firma
+  content      String    @db.Text // snapshot del contrato en el momento de firma
   acceptedAt   DateTime  @default(now())
   ipAddress    String?
   userAgent    String?   @db.Text
-  signatureRef String?   @db.Text  // nombre tipado o referencia base64
+  signatureRef String?   @db.Text // nombre tipado o referencia base64
   isValid      Boolean   @default(true)
   revokedAt    DateTime?
 
@@ -453,14 +567,14 @@ enum HealthProvider {
 }
 
 model HealthConnection {
-  id          String         @id @default(cuid())
-  athleteId   String
-  provider    HealthProvider
-  isActive    Boolean        @default(true)
-  lastSyncAt  DateTime?
-  metadata    Json?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id         String         @id @default(cuid())
+  athleteId  String
+  provider   HealthProvider
+  isActive   Boolean        @default(true)
+  lastSyncAt DateTime?
+  metadata   Json?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
 
   athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
 
@@ -544,21 +658,21 @@ enum ReviewCadence {
 // ─── Body Measurements (medidas corporales por grupos musculares) ──────────────
 
 model BodyMeasurement {
-  id          String   @id @default(cuid())
-  athleteId   String
-  date        DateTime @default(now())
-  weightKg    Float?
-  bodyFatPct  Float?
-  waistCm     Float?
-  hipCm       Float?
-  chestCm     Float?
-  armCm       Float?
-  quadCm      Float?
-  calfCm      Float?
-  glutesCm    Float?
-  neckCm      Float?
-  notes       String?  @db.Text
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  athleteId  String
+  date       DateTime @default(now())
+  weightKg   Float?
+  bodyFatPct Float?
+  waistCm    Float?
+  hipCm      Float?
+  chestCm    Float?
+  armCm      Float?
+  quadCm     Float?
+  calfCm     Float?
+  glutesCm   Float?
+  neckCm     Float?
+  notes      String?  @db.Text
+  createdAt  DateTime @default(now())
 
   athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
 
@@ -566,24 +680,24 @@ model BodyMeasurement {
 }
 
 model Notification {
-  id        String           @id @default(cuid())
-  userId    String
-  type      NotificationType @default(SYSTEM)
-  title     String
-  body      String?          @db.Text
-  link      String?
-  read      Boolean          @default(false)
-  
-  // Fase 1: Delivery tracking
-  channel   NotificationChannel @default(IN_APP)
-  deliveryStatus NotificationDeliveryStatus @default(PENDING)
-  retriesAttempted Int @default(0)
-  lastRetryAt DateTime?
-  externalId String? // para webhooks de entrega (Resend, Twilio, OneSignal)
-  
-  createdAt DateTime         @default(now())
+  id     String           @id @default(cuid())
+  userId String
+  type   NotificationType @default(SYSTEM)
+  title  String
+  body   String?          @db.Text
+  link   String?
+  read   Boolean          @default(false)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Fase 1: Delivery tracking
+  channel          NotificationChannel        @default(IN_APP)
+  deliveryStatus   NotificationDeliveryStatus @default(PENDING)
+  retriesAttempted Int                        @default(0)
+  lastRetryAt      DateTime?
+  externalId       String? // para webhooks de entrega (Resend, Twilio, OneSignal)
+
+  createdAt DateTime @default(now())
+
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   deliveries NotificationDelivery[]
 
   @@index([userId, read, createdAt])
@@ -592,15 +706,15 @@ model Notification {
 }
 
 model NotificationDelivery {
-  id               String                    @id @default(cuid())
+  id               String                     @id @default(cuid())
   notificationId   String
-  channel          NotificationChannel       @default(EMAIL)
+  channel          NotificationChannel        @default(EMAIL)
   status           NotificationDeliveryStatus @default(PENDING)
-  retriesAttempted Int                       @default(0)
+  retriesAttempted Int                        @default(0)
   lastRetryAt      DateTime?
-  externalId       String?                   @db.Text
-  errorMessage     String?                   @db.Text
-  createdAt        DateTime                  @default(now())
+  externalId       String?                    @db.Text
+  errorMessage     String?                    @db.Text
+  createdAt        DateTime                   @default(now())
 
   notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
 
@@ -618,8 +732,8 @@ model OtpToken {
   type         OtpType   @default(LOGIN)
   expiresAt    DateTime
   attemptsLeft Int       @default(3)
-  usedAt       DateTime?  // Cuando fue utilizado
-  metadata     Json?      // JSON para guardar datos contextuales (phone, etc)
+  usedAt       DateTime? // Cuando fue utilizado
+  metadata     Json? // JSON para guardar datos contextuales (phone, etc)
   createdAt    DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -631,15 +745,15 @@ model OtpToken {
 // ─── Audit Log ────────────────────────────────────────────────────────────────
 
 model AuditLog {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
-  action    String    // "user_registered", "otp_generated", "signature_requested", "signature_verified"
-  entity    String    // "User", "OtpToken", "DocumentSignature", "AthleteConsent"
+  action    String // "user_registered", "otp_generated", "signature_requested", "signature_verified"
+  entity    String // "User", "OtpToken", "DocumentSignature", "AthleteConsent"
   entityId  String
-  diff      Json?     // cambios JSON
+  diff      Json? // cambios JSON
   ipAddress String?
-  userAgent String?   @db.Text
-  createdAt DateTime  @default(now())
+  userAgent String?  @db.Text
+  createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -651,25 +765,25 @@ model AuditLog {
 // ─── Document Signatures ──────────────────────────────────────────────────────
 
 model DocumentSignature {
-  id              String          @id @default(cuid())
-  documentId      String
-  athleteId       String
-  userId          String
-  
-  dniHash         String?         // SHA256 hash de DNI enmascarado (sin guardar DNI plano)
-  otpUsed         Boolean         @default(false)
-  otpCode         String?         // @deprecated — no guardar código OTP, solo hash
-  
+  id         String @id @default(cuid())
+  documentId String
+  athleteId  String
+  userId     String
+
+  dniHash String? // SHA256 hash de DNI enmascarado (sin guardar DNI plano)
+  otpUsed Boolean @default(false)
+  otpCode String? // @deprecated — no guardar código OTP, solo hash
+
   ipAddress       String?
-  userAgent       String?         @db.Text
-  timestampServer DateTime        @default(now())
-  
-  signaturePath   String?         @db.Text // referencia a signature (base64 encoded o archivo)
-  pdfHash         String?         // SHA256 del PDF firmado
-  
-  status          SignatureStatus @default(PENDING)
-  revokedAt       DateTime?
-  createdAt       DateTime        @default(now())
+  userAgent       String?  @db.Text
+  timestampServer DateTime @default(now())
+
+  signaturePath String? @db.Text // referencia a signature (base64 encoded o archivo)
+  pdfHash       String? // SHA256 del PDF firmado
+
+  status    SignatureStatus @default(PENDING)
+  revokedAt DateTime?
+  createdAt DateTime        @default(now())
 
   document Document @relation("Signatures", fields: [documentId], references: [id], onDelete: Cascade)
   athlete  Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
@@ -698,34 +812,36 @@ model NotificationSettings {
 // ─── Progress Photos ─────────────────────────────────────────────────────────
 
 model ProgressPhoto {
-  id          String   @id @default(cuid())
-  athleteId   String
-  url         String   // path relativo en /public/uploads/ o URL externa
-  pose        String?  // front | back | side | relaxed | posed
-  weekLabel   String?
-  weightKg    Float?
-  takenAt     DateTime @default(now())
-  notes       String?  @db.Text
+  id        String   @id @default(cuid())
+  athleteId String
+  url       String // path relativo en /public/uploads/ o URL externa
+  pose      String? // front | back | side | relaxed | posed
+  weekLabel String?
+  weightKg  Float?
+  takenAt   DateTime @default(now())
+  notes     String?  @db.Text
 
   athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
   @@index([athleteId, takenAt])
 }
 
 // ─── Nutrition Log ────────────────────────────────────────────────────────────
 
 model NutritionLog {
-  id           String   @id @default(cuid())
-  athleteId    String
-  loggedAt     DateTime @default(now())
-  mealName     String?
-  kcal         Float?
-  proteinG     Float?
-  carbsG       Float?
-  fatG         Float?
-  notes        String?  @db.Text
-  photoUrl     String?
+  id        String   @id @default(cuid())
+  athleteId String
+  loggedAt  DateTime @default(now())
+  mealName  String?
+  kcal      Float?
+  proteinG  Float?
+  carbsG    Float?
+  fatG      Float?
+  notes     String?  @db.Text
+  photoUrl  String?
 
   athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
   @@index([athleteId, loggedAt])
 }
 
@@ -738,39 +854,44 @@ model TrainingTemplate {
   coachId     String
   name        String
   description String?  @db.Text
-  splitType   String?  // PPL | U/L | FullBody | Bro | Custom
-  payload     Json     // estructura del plan (misma forma que Plan+sessions+exercises)
+  splitType   String? // PPL | U/L | FullBody | Bro | Custom
+  payload     Json // estructura del plan (misma forma que Plan+sessions+exercises)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   coach Coach @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
   @@index([coachId])
 }
 
 // ─── Training Plan ────────────────────────────────────────────────────────────
 
 model Plan {
-  id         String   @id @default(cuid())
-  athleteId  String
-  coachId    String
-  title      String
-  weekLabel  String
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  athleteId String
+  coachId   String?
+  title     String
+  weekLabel String
+  
+  // Revisión y adaptación
+  reviewFrequencyDays Int      @default(7) // Cada cuántos días revisar/adaptar
+  lastReviewDate      DateTime?
+  
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
 
-  deletedAt  DateTime?
-
-  athlete      Athlete       @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  coach        Coach         @relation(fields: [coachId], references: [id])
-  sessions     WorkoutSession[]
-  sessionLogs  SessionLog[]
+  athlete     Athlete          @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  coach       Coach?           @relation(fields: [coachId], references: [id], onDelete: SetNull)
+  sessions    WorkoutSession[]
+  sessionLogs SessionLog[]
 }
 
 model WorkoutSession {
-  id      String @id @default(cuid())
-  planId  String
-  name    String
-  block   String @default("Bloque importado")
-  order   Int    @default(0)
+  id     String @id @default(cuid())
+  planId String
+  name   String
+  block  String @default("Bloque importado")
+  order  Int    @default(0)
 
   plan      Plan                   @relation(fields: [planId], references: [id], onDelete: Cascade)
   exercises ExercisePrescription[]
@@ -778,68 +899,112 @@ model WorkoutSession {
 }
 
 model ExercisePrescription {
-  id               String  @id @default(cuid())
-  sessionId        String
-  exercise         String
-  sets             Int
-  reps             String
-  targetRir        String?
-  restSeconds      Int?
-  notes            String? @db.Text
+  id          String  @id @default(cuid())
+  sessionId   String
+  exercise    String
+  sets        Int
+  reps        String
+  targetRir   String?
+  restSeconds Int?
+  notes       String? @db.Text
 
   // ── Técnicas de alta intensidad ──────────────────────────────────────────
-  technique        String? // "drop_set" | "rest_pause" | "myo_reps" | "super_set" | "giant_set" | "cluster" | "tempo" | "pre_fatiga" | "eccentrico" | "isometrico" | "amrap"
-  techniqueDetail  String? @db.Text   // descripción libre: "2 drops, -20% carga" / "pausa 1s abajo"
+  technique       String? // "drop_set" | "rest_pause" | "myo_reps" | "super_set" | "giant_set" | "cluster" | "tempo" | "pre_fatiga" | "eccentrico" | "isometrico" | "amrap"
+  techniqueDetail String? @db.Text // descripción libre: "2 drops, -20% carga" / "pausa 1s abajo"
 
   // ── Carga y tempo ────────────────────────────────────────────────────────
-  loadKg           Float?             // carga sugerida en kg (o % 1RM si se escribe "75%")
-  loadNote         String?            // "75% RM" / "RPE 8" / "Módico — prioridad técnica"
-  tempoEcc         Int?               // fase excéntrica en segundos (p.ej. 3)
-  tempoPause       Int?               // pausa abajo en segundos   (p.ej. 1)
-  tempoConc        Int?               // fase concéntrica en seg   (p.ej. 1)
+  loadKg     Float? // carga sugerida en kg (o % 1RM si se escribe "75%")
+  loadNote   String? // "75% RM" / "RPE 8" / "Módico — prioridad técnica"
+  tempoEcc   Int? // fase excéntrica en segundos (p.ej. 3)
+  tempoPause Int? // pausa abajo en segundos   (p.ej. 1)
+  tempoConc  Int? // fase concéntrica en seg   (p.ej. 1)
 
   // ── Coach cues y progresión ──────────────────────────────────────────────
-  coachCue         String? @db.Text   // indicación técnica verbal: "Codos 45°, no tocar el pecho"
-  progressionNote  String? @db.Text   // criterio de progresión: "si >8 reps con esa carga, +2.5 kg"
-  videoUrl         String?            // referencia de técnica o demo
+  coachCue        String? @db.Text // indicación técnica verbal: "Codos 45°, no tocar el pecho"
+  progressionNote String? @db.Text // criterio de progresión: "si >8 reps con esa carga, +2.5 kg"
+  videoUrl        String? // referencia de técnica o demo
 
-  order            Int     @default(0)
+  order Int @default(0)
 
   session WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+// ─── Mapeo de ejercicio a músculo ──────────────────────────────────────────
+
+model ExerciseMuscleMapping {
+  id                 String   @id @default(cuid())
+  exercise           String   @unique // "Press de banca"
+  primaryMuscle      String           // "pecho"
+  secondaryMuscles   Json?            // ["triceps", "deltoides_anterior"]
+  externalImageUrl   String?          // API externa (ExerciseDB, wger, etc.)
+  externalVideoUrl   String?          // URL de video de técnica
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([primaryMuscle])
+}
+
+// ─── Configuración de seguimiento de evolución ─────────────────────────────
+
+model EvolutionSetting {
+  id                    String   @id @default(cuid())
+  athleteId             String   @unique
+  
+  // Músculos a trackear
+  muscleGroups          Json     @default("[]") // ["pecho", "espalda", "pierna", "brazos"]
+  
+  // Volumen objetivo semanal por músculo
+  volumeGoals           Json     @default("{}") // { "pecho": [20, 25], "espalda": [25, 30] }
+  
+  // Sugerencias automáticas
+  enableAutoSuggestions Boolean  @default(true)
+  suggestionThreshold   Int      @default(15) // Alerta si cambio > 15%
+  
+  // Gráficas habilitadas
+  enabledCharts         Json     @default("{}") // { "volumeByMuscle": true, "correlations": true }
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  athlete               Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  
+  @@index([athleteId])
 }
 
 // ─── Check-in semanal ─────────────────────────────────────────────────────────
 
 model CheckIn {
-  id            String   @id @default(cuid())
-  athleteId     String
-  weekLabel     String
-  date          DateTime @default(now())
-  weightKg      Float    @default(0)
-  stepsAvg      Int      @default(0)
-  sleepHours    Float    @default(0)
-  adherencePct  Float    @default(0)
-  sensations    String?  @db.Text
-  notes         String?  @db.Text
-  coachNote     String?  @db.Text
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  athleteId    String
+  weekLabel    String
+  date         DateTime @default(now())
+  weightKg     Float    @default(0)
+  stepsAvg     Int      @default(0)
+  sleepHours   Float    @default(0)
+  adherencePct Float    @default(0)
+  sensations   String?  @db.Text
+  notes        String?  @db.Text
+  coachNote    String?  @db.Text
+  createdAt    DateTime @default(now())
 
   athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@unique([athleteId, date])
 }
 
 // ─── Registro diario (métricas diarias) ──────────────────────────────────────
 
 model DailyLog {
-  id          String   @id @default(cuid())
-  athleteId   String
-  date        DateTime @default(now())
-  weightKg    Float?   @default(0)
-  steps       Int?     @default(0)
-  sleepHours  Float?   @default(0)
-  waistCm     Float?
-  bodyFatPct  Float?
-  notes       String?  @db.Text
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  athleteId  String
+  date       DateTime @default(now())
+  weightKg   Float?   @default(0)
+  steps      Int?     @default(0)
+  sleepHours Float?   @default(0)
+  waistCm    Float?
+  bodyFatPct Float?
+  notes      String?  @db.Text
+  createdAt  DateTime @default(now())
 
   athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
 
@@ -849,23 +1014,31 @@ model DailyLog {
 // ─── Session Log (registro de entrenamiento real) ─────────────────────────────
 
 model SessionLog {
-  id            String   @id @default(cuid())
-  athleteId     String
-  planId        String
-  sessionId     String
-  sessionName   String
-  date          DateTime @default(now())
-  notes         String?  @db.Text
-  durationMin   Int?
-  kcalBurned    Int?
-  heartRateAvg  Int?
-  source        String   @default("manual") // "manual" | "garmin" | "google_fit" | "polar" | "import"
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  athleteId    String
+  planId       String
+  sessionId    String
+  sessionName  String
+  date         DateTime @default(now())
+  
+  // Tracking de sesión
+  notes        String?  @db.Text
+  durationMin  Int?
+  kcalBurned   Int?
+  heartRateAvg Int?
+  source       String   @default("manual") // "manual" | "garmin" | "google_fit" | "polar" | "import"
+  
+  // Tracking de músculos objetivo (para evolución)
+  muscleTargets Json?   // ["pecho", "triceps"]
+  
+  createdAt    DateTime @default(now())
 
   athlete Athlete        @relation(fields: [athleteId], references: [id], onDelete: Cascade)
   plan    Plan           @relation(fields: [planId], references: [id])
   session WorkoutSession @relation(fields: [sessionId], references: [id])
   sets    SetLog[]
+
+  @@index([athleteId, date])
 }
 
 model SetLog {
@@ -877,6 +1050,9 @@ model SetLog {
   loadKg        Float  @default(0)
   reps          Int    @default(0)
   rir           Int    @default(0)
+  
+  // Músculo objetivo (para tracking de volumen)
+  primaryMuscle String?  // "pecho", "espalda", etc.
 
   sessionLog SessionLog @relation(fields: [sessionLogId], references: [id], onDelete: Cascade)
 }
@@ -884,49 +1060,70 @@ model SetLog {
 // ─── Nutrition Plan ───────────────────────────────────────────────────────────
 
 model NutritionPlan {
-  id          String   @id @default(cuid())
-  athleteId   String
-  coachId     String
-  title       String
-  phase       String   @default("Activo")
-  kcalTarget  Int      @default(0)
-  proteinG    Int      @default(0)
-  carbsG      Int      @default(0)
-  fatG        Int      @default(0)
-  notes       String?  @db.Text
-  isActive    Boolean  @default(true)
-  deletedAt   DateTime?
-  createdAt   DateTime @default(now())
+  id         String    @id @default(cuid())
+  athleteId  String
+  coachId    String?
+  title      String
+  phase      String    @default("Activo")
+  kcalTarget Int       @default(0)
+  proteinG   Int       @default(0)
+  carbsG     Int       @default(0)
+  fatG       Int       @default(0)
+  notes      String?   @db.Text
+  isActive   Boolean   @default(true)
+  deletedAt  DateTime?
+  createdAt  DateTime  @default(now())
 
   athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  coach   Coach   @relation(fields: [coachId], references: [id])
+  coach   Coach?  @relation(fields: [coachId], references: [id], onDelete: SetNull)
   meals   Meal[]
-
-  @@index([athleteId, isActive])
 }
 
+// ─── LLM Calls (auditoría de uso de IA) ──────────────────────────────────────
+
+model LlmCall {
+  id            String   @id @default(cuid())
+  userId        String?
+  taskKey       String   // 'parse-food', 'classify-message', etc.
+  model         String   // 'haiku' | 'sonnet'
+  promptHash    String   @db.VarChar(64)
+  inputTokens   Int
+  outputTokens  Int
+  costUsd       Decimal  @db.Decimal(10, 6)
+  durationMs    Int
+  status        String   // 'success' | 'error' | 'cached'
+  errorMsg      String?  @db.Text
+  createdAt     DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([taskKey, createdAt])
+  @@index([userId, createdAt])
+}
+
+
 model Meal {
-  id      String @id @default(cuid())
-  planId  String
-  name    String
-  time    String @default("")
-  order   Int    @default(0)
+  id     String @id @default(cuid())
+  planId String
+  name   String
+  time   String @default("")
+  order  Int    @default(0)
 
   plan  NutritionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
   foods MealFood[]
 }
 
 model MealFood {
-  id        String  @id @default(cuid())
-  mealId    String
-  food      String
-  quantity  Float   @default(0)
-  unit      String  @default("g")
-  kcal      Int?
-  proteinG  Float?
-  carbsG    Float?
-  fatG      Float?
-  order     Int     @default(0)
+  id       String @id @default(cuid())
+  mealId   String
+  food     String
+  quantity Float  @default(0)
+  unit     String @default("g")
+  kcal     Int?
+  proteinG Float?
+  carbsG   Float?
+  fatG     Float?
+  order    Int    @default(0)
 
   meal Meal @relation(fields: [mealId], references: [id], onDelete: Cascade)
 }
@@ -937,7 +1134,7 @@ model NutritionTemplate {
   id        String   @id @default(cuid())
   coachId   String
   name      String
-  meals     Json     // array de MealDraft serializado
+  meals     Json // array de MealDraft serializado
   createdAt DateTime @default(now())
 
   coach Coach @relation(fields: [coachId], references: [id], onDelete: Cascade)
@@ -946,39 +1143,38 @@ model NutritionTemplate {
 // ─── Service Plan (contratación) ──────────────────────────────────────────────
 
 model ServicePlan {
-  id                 String   @id @default(cuid())
-  coachId            String
-  name               String
-  description        String?  @db.Text
-  priceEur           Float    @default(0)
-  durationWeeks      Int      @default(4)
-  includesNutrition  Boolean  @default(false)
-  checkinFreqDays    Int      @default(7)
-  createdAt          DateTime @default(now())
+  id                String   @id @default(cuid())
+  coachId           String
+  name              String
+  description       String?  @db.Text
+  priceEur          Float    @default(0)
+  durationWeeks     Int      @default(4)
+  includesNutrition Boolean  @default(false)
+  checkinFreqDays   Int      @default(7)
+  createdAt         DateTime @default(now())
 
-  coach       Coach    @relation(fields: [coachId], references: [id], onDelete: Cascade)
-  subscriptions AthleteSubscription[]
+  coach Coach @relation(fields: [coachId], references: [id], onDelete: Cascade)
 }
 
 // ─── Document (dietas, PDFs, etc.) ────────────────────────────────────────────
 
 model Document {
-  id         String   @id @default(cuid())
-  athleteId  String
-  coachId    String
-  title      String
-  category   DocCategory @default(GENERAL)
-  fileUrl    String   // ruta relativa: /uploads/docs/<filename>
-  fileName   String
-  mimeType   String
-  sizeBytes  Int      @default(0)
-  notes      String?  @db.Text
-  deletedAt  DateTime?
-  createdAt  DateTime @default(now())
+  id        String      @id @default(cuid())
+  athleteId String
+  coachId   String?
+  title     String
+  category  DocCategory @default(GENERAL)
+  fileUrl   String // ruta relativa: /uploads/docs/<filename>
+  fileName  String
+  mimeType  String
+  sizeBytes Int         @default(0)
+  notes     String?     @db.Text
+  deletedAt DateTime?
+  createdAt DateTime    @default(now())
 
   athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  coach   Coach   @relation(fields: [coachId], references: [id])
-  
+  coach   Coach?  @relation(fields: [coachId], references: [id], onDelete: SetNull)
+
   // Fase 1: Signatures
   signatures DocumentSignature[] @relation("Signatures")
 
@@ -996,17 +1192,17 @@ enum DocCategory {
 // ─── Messaging ────────────────────────────────────────────────────────────────
 
 model Message {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   fromUserId String
   toUserId   String
-  athleteId  String?   // contexto del atleta (hilo coach-atleta)
-  content    String   @db.Text
+  athleteId  String? // contexto del atleta (hilo coach-atleta)
+  content    String    @db.Text
   readAt     DateTime?
   deletedAt  DateTime?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
-  from   User  @relation("MessageFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
-  to     User  @relation("MessageTo",   fields: [toUserId],   references: [id], onDelete: Cascade)
+  from User @relation("MessageFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  to   User @relation("MessageTo", fields: [toUserId], references: [id], onDelete: Cascade)
 
   @@index([fromUserId, toUserId, createdAt])
 }
@@ -1014,15 +1210,15 @@ model Message {
 // ─── Team Wall ────────────────────────────────────────────────────────────────
 
 model TeamPost {
-  id        String    @id @default(cuid())
-  teamId    String?   // tenant scope (null = legacy / global)
+  id        String   @id @default(cuid())
+  teamId    String? // tenant scope (null = legacy / global)
   authorId  String
-  content   String    @db.Text
-  isPinned  Boolean   @default(false)
-  createdAt DateTime  @default(now())
+  content   String   @db.Text
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
 
-  team     Team?          @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  author   User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  team     Team?         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  author   User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   comments PostComment[]
 
   @@index([teamId, isPinned, createdAt])
@@ -1070,3 +1266,59 @@ model AthleteContextProfile {
   athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
 }
 
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+  UNPAID
+  INACTIVE
+}
+
+// ─── Favoritos de Ejercicios ──────────────────────────────────────────────────
+
+model FavoriteExercise {
+  id           String   @id @default(cuid())
+  athleteId    String
+  exerciseName String   // Nombre del ejercicio (búsqueda)
+  addedAt      DateTime @default(now())
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@unique([athleteId, exerciseName])
+  @@index([athleteId, addedAt])
+}
+
+// ─── Favoritos de Alimentos ───────────────────────────────────────────────────
+
+model FavoriteFood {
+  id        String   @id @default(cuid())
+  athleteId String
+  foodName  String   // Nombre del alimento
+  source    String   // "wger" | "off" | "mfp" | "local"
+  sourceId  String?  // ID en la fuente (opcional, para lookups rápidos)
+  kcal      Int?     // Caché de datos nutricionales
+  proteinG  Float?
+  carbsG    Float?
+  fatG      Float?
+  addedAt   DateTime @default(now())
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@unique([athleteId, foodName, source])
+  @@index([athleteId, addedAt])
+  @@index([athleteId, source])
+}
+
+// ─── Preferencias Nutricionales del Atleta (dieta abierta vs cerrada) ────────
+
+model NutritionPreference {
+  id         String   @id @default(cuid())
+  athleteId  String   @unique
+  dietType   String   @default("closed") // "open" = atleta puede elegir alimentos, "closed" = solo lo que el coach asigna
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+}

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
+import { parseJsonOrError } from '@/lib/api/json-parser'
+import { unauthorized, badRequest } from '@/lib/api/error-response'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,14 +10,16 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: Request) {
   const session = await auth()
   if (!session?.user?.id) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    return unauthorized('No autorizado')
   }
 
-  const body = await request.json().catch(() => ({}))
+  const parsed = await parseJsonOrError(request)
+  if (!parsed.ok) return parsed.error
+  const body = parsed.data as any
   const { code, type = 'VERIFICATION', phone } = body
 
   if (!code || !type) {
-    return NextResponse.json({ error: 'code y type son requeridos' }, { status: 400 })
+    return badRequest('code y type son requeridos')
   }
 
   // Buscar token activo
@@ -30,7 +34,7 @@ export async function POST(request: Request) {
   })
 
   if (!otp) {
-    return NextResponse.json({ error: 'Código inválido o expirado' }, { status: 401 })
+    return unauthorized('Código inválido o expirado')
   }
 
   // Marcar como utilizado

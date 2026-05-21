@@ -1,11 +1,10 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
-import { logAudit } from "@/lib/audit";
-import { auditMutation } from "@/lib/api/audit";
-import { z } from "zod";
+import { apiHandler } from '@/lib/api/api-handler';
+import { prisma } from '@/lib/prisma';
+import { auditMutation } from '@/lib/api/audit';
+import { z } from 'zod';
+import { parseJsonOrError } from '@/lib/api/json-parser';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 async function getCoachId(userId: string) {
   const coach = await prisma.coach.findUnique({ where: { userId }, select: { id: true } });
@@ -17,97 +16,87 @@ async function canManagePlan(coachId: string, planId: string) {
   return plan?.coachId === coachId;
 }
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+export const GET = apiHandler({
+  auth: 'coach',
+  handler: async ({ params, session }) => {
+    const id = params.id;
+    const coachId = await getCoachId(session.user.id);
+    if (!coachId) throw new Error('No es coach');
+    if (!(await canManagePlan(coachId, id))) throw new Error('Sin acceso');
 
-  const coachId = await getCoachId(session.user.id);
-  if (!coachId) return NextResponse.json({ error: "No es coach" }, { status: 403 });
-  if (!(await canManagePlan(coachId, id))) return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
-
-  const plan = await prisma.plan.findUnique({
-    where: { id },
-    include: {
-      sessions: {
-        orderBy: { order: "asc" },
-        include: { exercises: { orderBy: { order: "asc" } } },
+    const plan = await prisma.plan.findUnique({
+      where: { id },
+      include: {
+        sessions: {
+          orderBy: { order: 'asc' },
+          include: { exercises: { orderBy: { order: 'asc' } } },
+        },
       },
-    },
-  });
+    });
 
-  if (!plan) return NextResponse.json({ error: "Plan no encontrado" }, { status: 404 });
-  return NextResponse.json(plan);
-}
+    if (!plan) throw new Error('Plan no encontrado');
+    return plan;
+  },
+});
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+export const PATCH = apiHandler({
+  auth: 'coach',
+  handler: async ({ params, req, session }) => {
+    const id = params.id;
+    const coachId = await getCoachId(session.user.id);
+    if (!coachId) throw new Error('No es coach');
+    if (!(await canManagePlan(coachId, id))) throw new Error('Sin acceso');
 
-  const coachId = await getCoachId(session.user.id);
-  if (!coachId) return NextResponse.json({ error: "No es coach" }, { status: 403 });
-  if (!(await canManagePlan(coachId, id))) return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
+    const before = await prisma.plan.findUnique({ where: { id }, select: { title: true, weekLabel: true, athleteId: true } });
 
-  const before = await prisma.plan.findUnique({ where: { id }, select: { title: true, weekLabel: true, athleteId: true } });
+    const patchSchema = z.object({
+      title: z.string().min(1).max(200).optional(),
+      weekLabel: z.string().min(1).max(100).optional(),
+      athleteId: z.string().min(1).optional(),
+    });
 
-  const patchSchema = z.object({
-    title: z.string().min(1).max(200).optional(),
-    weekLabel: z.string().min(1).max(100).optional(),
-    athleteId: z.string().min(1).optional(),
-  });
+    const parseResult = await parseJsonOrError(req);
+    if (!parseResult.ok) return parseResult.error;
+    const parsed = patchSchema.safeParse(parseResult.data);
+    if (!parsed.success) {
+      return { error: 'Datos inválidos', details: parsed.error.flatten() } as any;
+    }
+    const body = parsed.data;
 
-  let rawBody: unknown;
-  try { rawBody = await req.json(); } catch {
-    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
-  }
+    const updated = await prisma.plan.update({
+      where: { id },
+      data: {
+        ...(body.title !== undefined && { title: body.title }),
+        ...(body.weekLabel !== undefined && { weekLabel: body.weekLabel }),
+        ...(body.athleteId !== undefined && { athleteId: body.athleteId }),
+      },
+    });
 
-  const parsed = patchSchema.safeParse(rawBody);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Datos inválidos", details: parsed.error.flatten() }, { status: 422 });
-  }
-  const body = parsed.data;
+    await auditMutation({
+      entity: 'Plan',
+      entityId: id,
+      action: 'UPDATE',
+      before: before ?? undefined,
+      after: { title: updated.title, weekLabel: updated.weekLabel, athleteId: updated.athleteId },
+      userId: session.user.id,
+    });
 
-  const updated = await prisma.plan.update({
-    where: { id },
-    data: {
-      ...(body.title !== undefined && { title: body.title }),
-      ...(body.weekLabel !== undefined && { weekLabel: body.weekLabel }),
-      ...(body.athleteId !== undefined && { athleteId: body.athleteId }),
-    },
-  });
+    return updated;
+  },
+});
 
-  await auditMutation({
-    entity: "Plan",
-    entityId: id,
-    action: "UPDATE",
-    before: before ?? undefined,
-    after: { title: updated.title, weekLabel: updated.weekLabel, athleteId: updated.athleteId },
-    userId: session.user.id,
-  });
+export const DELETE = apiHandler({
+  auth: 'coach',
+  handler: async ({ params, session }) => {
+    const id = params.id;
+    const coachId = await getCoachId(session.user.id);
+    if (!coachId) throw new Error('No es coach');
+    if (!(await canManagePlan(coachId, id))) throw new Error('Sin acceso');
 
-  return NextResponse.json(updated);
-}
+    await prisma.plan.update({ where: { id }, data: { deletedAt: new Date() } });
 
-export async function DELETE(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    await auditMutation({ entity: 'Plan', entityId: id, action: 'DELETE', before: undefined, userId: session.user.id });
 
-  const coachId = await getCoachId(session.user.id);
-  if (!coachId) return NextResponse.json({ error: "No es coach" }, { status: 403 });
-  if (!(await canManagePlan(coachId, id))) return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
-
-  await prisma.plan.update({ where: { id }, data: { deletedAt: new Date() } });
-  await logAudit(session.user.id, "DELETE", "Plan", id);
-  return NextResponse.json({ ok: true });
-}
+    return { ok: true };
+  },
+});

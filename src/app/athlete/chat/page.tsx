@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiFetch } from '@/lib/store'
 import { SectionIntro } from "@/components/section-intro";
 import { ChatPanel } from "@/components/chat-panel";
 import { useAthleteMe } from "@/lib/use-athlete-me";
@@ -14,9 +15,9 @@ export default function AthleteChatPage() {
 
   useEffect(() => {
     if (!athlete) return;
-    fetch("/api/me/coach-for-athlete")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (data) setCoach(data); });
+    apiFetch<CoachInfo>('/api/me/coach-for-athlete')
+      .then((data) => { if (data) setCoach(data); })
+      .catch(() => void 0)
   }, [athlete]);
 
   if (loading) {

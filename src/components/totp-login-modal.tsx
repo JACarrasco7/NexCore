@@ -1,6 +1,7 @@
-'use client'
+"use client"
 
 import { useState } from 'react'
+import { apiPost } from '@/lib/store'
 import { useRouter } from 'next/navigation'
 
 type Props = {
@@ -24,17 +25,11 @@ export default function TotpLoginModal({ open, onClose, next }: Props) {
       const body: any = {}
       if (useBackup) body.backupCode = code
       else body.token = code
-      const res = await fetch('/api/2fa/validate', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        setError(json?.error ?? 'Código inválido')
-      } else {
-        // Success: proceed to app
+      try {
+        await apiPost('/api/2fa/validate', body)
         router.push(next)
+      } catch (err: any) {
+        setError(err?.message ?? 'Código inválido')
       }
     } catch {
       setError('Error de red')

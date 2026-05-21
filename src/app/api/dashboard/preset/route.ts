@@ -3,6 +3,8 @@ import { auth } from "@/auth";
 import { DEFAULT_LAYOUT, sanitizeLayout } from "@/lib/dashboard-config";
 import { prisma } from "@/lib/prisma";
 import { dashboardLayoutSchema } from "@/lib/validators";
+import { parseJsonOrError } from '@/lib/api/json-parser'
+import { unauthorized, forbidden, badRequest } from '@/lib/api/error-response'
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,8 @@ async function resolveCoachPresetContext(athleteId: string, userId: string, role
   });
 
   if (!athlete) return { error: NextResponse.json({ error: "Atleta no encontrado" }, { status: 404 }) };
+  if (!athlete.coachId) return { error: badRequest("Atleta sin coach asignado") };
+
   if (role === "ADMIN") return { athleteId: athlete.id, coachId: athlete.coachId };
 
   const coach = await prisma.coach.findUnique({ where: { userId }, select: { id: true } });
@@ -25,15 +29,15 @@ async function resolveCoachPresetContext(athleteId: string, userId: string, role
 
 export async function GET(request: Request) {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  if (!session?.user?.id) return unauthorized('No autenticado')
 
   const role = (session.user as { role?: string }).role;
   if (role !== "COACH" && role !== "ADMIN") {
-    return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
+    return forbidden('Sin acceso')
   }
 
   const athleteId = new URL(request.url).searchParams.get("athleteId");
-  if (!athleteId) return NextResponse.json({ error: "athleteId requerido" }, { status: 400 });
+  if (!athleteId) return badRequest('athleteId requerido')
 
   const context = await resolveCoachPresetContext(athleteId, session.user.id, role);
   if ("error" in context) return context.error;
@@ -52,20 +56,22 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  if (!session?.user?.id) return unauthorized('No autenticado')
 
   const role = (session.user as { role?: string }).role;
   if (role !== "COACH" && role !== "ADMIN") {
-    return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
+    return forbidden('Sin acceso')
   }
 
-  const body = await request.json().catch(() => ({}));
+  const parsedBody = await parseJsonOrError(request)
+  if (!parsedBody.ok) return parsedBody.error
+  const body = parsedBody.data as any
   const athleteId = typeof body.athleteId === "string" ? body.athleteId : "";
-  if (!athleteId) return NextResponse.json({ error: "athleteId requerido" }, { status: 400 });
+  if (!athleteId) return badRequest('athleteId requerido')
 
   const parsed = dashboardLayoutSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Preset inválido", details: parsed.error.flatten().fieldErrors }, { status: 422 });
+    return badRequest('Preset inválido', parsed.error.flatten().fieldErrors)
   }
 
   const context = await resolveCoachPresetContext(athleteId, session.user.id, role);

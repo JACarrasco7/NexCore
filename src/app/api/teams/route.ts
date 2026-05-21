@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
+import { checkRateLimit, getClientIp, getRateLimitKey } from '@/lib/rate-limit'
+import { parseJsonOrError } from '@/lib/api/json-parser'
+import { badRequest, unauthorized, forbidden, tooManyRequests, serverError } from '@/lib/api/error-response'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,19 +62,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
+  // Rate limiting to prevent team creation spam
+  const clientIp = getClientIp(request.headers)
+  const rateLimitKey = getRateLimitKey(clientIp, session.user.id)
+  const { ok } = await checkRateLimit(rateLimitKey, 5, 60) // 5 req/min per user
+  if (!ok) return tooManyRequests()
+
   const role = (session.user as { role?: string }).role
   if (role !== 'COACH' && role !== 'ADMIN') {
     return NextResponse.json({ error: 'Solo coaches pueden crear equipos' }, { status: 403 })
   }
 
-  const body = await request.json().catch(() => ({}))
+  const parsed = await parseJsonOrError(request)
+  if (!parsed.ok) return parsed.error
+  const body = parsed.data as any
   const { name, slug } = body
 
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
-    return NextResponse.json(
-      { error: 'name es requerido y debe ser un string no vacío' },
-      { status: 400 }
-    )
+    return badRequest('name es requerido y debe ser un string no vacío')
   }
 
   const trimmedName = name.trim()
@@ -125,8 +133,7 @@ export async function POST(request: Request) {
     if (err?.code === 'P2002' && err?.meta?.target?.includes('slug')) {
       return NextResponse.json({ error: 'Este slug ya existe' }, { status: 409 })
     }
-
     console.error('[teams-create]', err)
-    return NextResponse.json({ error: 'Error creando equipo' }, { status: 500 })
+    return serverError('Error creando equipo')
   }
 }

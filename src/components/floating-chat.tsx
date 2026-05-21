@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ChatPanel } from '@/components/chat-panel'
+import { apiFetch } from '@/lib/store'
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 type InboxItem = {
@@ -65,16 +66,14 @@ export function FloatingChat({ unread = 0 }: { unread?: number }) {
   useEffect(() => {
     if (!open) return
     if (role === 'COACH' || role === 'ADMIN') {
-      fetch('/api/coach/inbox')
-        .then((r) => r.json())
-        .then((d) => setInbox(Array.isArray(d) ? d : (d?.conversations ?? [])))
+      apiFetch('/api/coach/inbox')
+        .then((d: any) => setInbox(Array.isArray(d) ? d : d?.conversations ?? []))
         .catch(() => {})
     } else if (role === 'ATHLETE') {
       if (coachInfo) return
       setLoadingCoach(true)
-      fetch('/api/me/coach-for-athlete')
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
+      apiFetch('/api/me/coach-for-athlete')
+        .then((d: any) => {
           if (d) setCoachInfo(d)
         })
         .catch(() => {})

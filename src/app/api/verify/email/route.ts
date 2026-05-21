@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import crypto from 'crypto'
+import { parseJsonOrError } from '@/lib/api/json-parser'
 
 const schema = z.object({
   token: z.string().min(20),
@@ -12,8 +13,11 @@ const schema = z.object({
  * Marca como emailVerified y borra el token.
  */
 export async function POST(request: Request) {
+  const parseResult = await parseJsonOrError(request)
+  if (!parseResult.ok) return parseResult.error
+
   try {
-    const body = await request.json()
+    const body = parseResult.data
     const { token } = schema.parse(body)
 
     // Buscar usuario con ese token de verificación

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notifications'
 import { checkInSchema } from '@/lib/validators'
 import { paginationSchema, buildPaginationResponse } from '@/lib/api'
+import { parseJsonOrError } from '@/lib/api/json-parser'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,9 +33,11 @@ export async function GET(request: Request) {
         .then(Boolean)))
   if (!allowed) return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
 
+  const takeParam = searchParams.get('take') ?? searchParams.get('limit') ?? undefined
+  const cursorParam = searchParams.get('cursor') ?? undefined
   const pagination = paginationSchema.safeParse({
-    take: searchParams.get('take') ?? 20,
-    cursor: searchParams.get('cursor') ?? undefined,
+    take: takeParam,
+    cursor: cursorParam,
     from: searchParams.get('from') ?? undefined,
     to: searchParams.get('to') ?? undefined,
   })
@@ -84,7 +87,9 @@ export async function POST(request: Request) {
   }
 
   const role = (session.user as { role?: string }).role
-  const body = await request.json()
+  const result = await parseJsonOrError(request)
+  if (!result.ok) return result.error
+  const body = result.data as any // Already validated by parseJsonOrError
 
   const parsed = checkInSchema.safeParse(body)
   if (!parsed.success) {
@@ -108,7 +113,7 @@ export async function POST(request: Request) {
 
   const canCreate =
     role === 'ADMIN' ||
-    (role === 'COACH' && athlete.coach.userId === session.user.id) ||
+    (role === 'COACH' && athlete.coach?.userId === session.user.id) ||
     (role === 'ATHLETE' && athlete.userId === session.user.id)
   if (!canCreate) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -132,7 +137,7 @@ export async function POST(request: Request) {
     if (athlete.coach?.userId) {
       await tx.notification.create({
         data: {
-          userId: athlete.coach.userId,
+          userId: athlete.coach!.userId,
           type: NotificationType.CHECK_IN_RESPONDED,
           title: `Nuevo check-in de ${athlete.fullName}`,
           body: `Semana: ${checkIn.weekLabel} · Peso: ${checkIn.weightKg ?? '-'} kg`,

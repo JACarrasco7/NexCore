@@ -1,6 +1,20 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { checkRateLimit, getClientIp, getRateLimitKey, LIMITS } from '@/lib/rate-limit'
+
+/**
+ * JWT token payload structure
+ */
+interface TokenPayload {
+  id: string
+  email: string
+  name?: string
+  role: string
+  totpEnabled?: boolean
+  totpVerified?: boolean
+  totpCheckedAt?: number
+  emailVerified?: boolean | null
+}
 
 /**
  * Global API middleware.
@@ -21,16 +35,21 @@ const PAGE_REDIRECTS = ['/login', '/register', '/']
 
 const BEARER_PREFIXES = ['/api/cron']
 
-export default async function middleware(req: Request) {
-  const { pathname } = (req as any).nextUrl
-  const clientIp = getClientIp((req as any).headers)
+export default async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl
+  const clientIp = getClientIp(req.headers)
 
   // Resolve token via next-auth/jwt (edge-safe)
-  let token: any = null
+  let token: TokenPayload | null = null
   try {
-    token = await getToken({ req: req as any, secret: process.env.AUTH_SECRET })
+    token = (await getToken({ req, secret: process.env.AUTH_SECRET })) as TokenPayload | null
   } catch (e) {
-    // ignore token parse errors
+    // Log token parse errors for security monitoring
+    // If token parsing fails, treat as unauthenticated (token = null)
+    console.warn('[middleware] Token parsing failed:', {
+      pathname,
+      error: e instanceof Error ? e.message : String(e),
+    })
     token = null
   }
 
@@ -98,7 +117,7 @@ export default async function middleware(req: Request) {
     }
 
     // For page requests, redirect to `/login?totp_required=1`
-    const url = (req as any).nextUrl.clone()
+    const url = req.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('totp_required', '1')
     return NextResponse.redirect(url)

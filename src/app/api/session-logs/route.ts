@@ -9,6 +9,7 @@ import {
   buildPaginationResponse,
 } from '@/lib/api'
 import { sessionLogSchema } from '@/lib/validators'
+import { parseJsonOrError } from '@/lib/api/json-parser'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,9 +31,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
   }
 
+  const takeParam = searchParams.get('take') ?? searchParams.get('limit') ?? undefined
+  const cursorParam = searchParams.get('cursor') ?? undefined
   const pagination = paginationSchema.safeParse({
-    take: searchParams.get('take') ?? 20,
-    cursor: searchParams.get('cursor') ?? undefined,
+    take: takeParam,
+    cursor: cursorParam,
     from: searchParams.get('from') ?? undefined,
     to: searchParams.get('to') ?? undefined,
   })
@@ -92,14 +95,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  let rawBody: unknown
-  try {
-    rawBody = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
-  }
-
-  const parsed = sessionLogSchema.safeParse(rawBody)
+  const parseResult = await parseJsonOrError(request)
+  if (!parseResult.ok) return parseResult.error
+  const parsed = sessionLogSchema.safeParse(parseResult.data)
   if (!parsed.success) {
     return NextResponse.json(
       { error: 'Datos inválidos', details: parsed.error.flatten() },

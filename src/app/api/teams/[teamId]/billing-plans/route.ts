@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
 import { z } from 'zod'
+import { parseJsonOrError } from '@/lib/api/json-parser'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,8 +84,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
       )
     }
 
-    const body = await request.json()
-    const validated = CreateBillingPlanSchema.parse(body)
+    const parseResult = await parseJsonOrError(request)
+    if (!parseResult.ok) return parseResult.error
+    const validated = CreateBillingPlanSchema.parse(parseResult.data)
 
     // Create billing plan
     const plan = await prisma.teamBillingPlan.create({

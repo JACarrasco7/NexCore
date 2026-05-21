@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useSession } from "next-auth/react";
+import { apiPost } from '@/lib/store'
 import OtpModal from "./otp-modal";
 
 type Props = {
@@ -24,20 +25,11 @@ export default function SignWizard({ documentId, onClose }: Props) {
     setMessage(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/otp/generate", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, type: "SIGNATURE" }),
-      });
-      const body = await res.json();
-      if (!res.ok) {
-        setMessage(body.error ?? "Error al solicitar código");
-      } else {
-        setOtpOpen(true);
-        setStep(3);
-      }
-    } catch (err) {
-      setMessage("Error de red");
+      await apiPost("/api/auth/otp/generate", { email, type: "SIGNATURE" })
+      setOtpOpen(true);
+      setStep(3);
+    } catch (err: any) {
+      setMessage(err?.message ?? "Error al solicitar código");
     } finally {
       setLoading(false);
     }
@@ -49,20 +41,11 @@ export default function SignWizard({ documentId, onClose }: Props) {
     setLoading(true);
     setMessage(null);
     try {
-      const res = await fetch(`/api/documents/${documentId}/sign`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ otp: code, dni, checkboxAccepted: checkbox }),
-      });
-      const body = await res.json();
-      if (!res.ok) {
-        setMessage(body.error ?? body.message ?? "Error al firmar");
-      } else {
-        setSignedUrl(body.signedUrl ?? null);
-        setStep(4);
-      }
-    } catch (err) {
-      setMessage("Error de red");
+      const body = await apiPost<{ signedUrl?: string }>(`/api/documents/${documentId}/sign`, { otp: code, dni, checkboxAccepted: checkbox })
+      setSignedUrl((body as any).signedUrl ?? null);
+      setStep(4);
+    } catch (err: any) {
+      setMessage(err?.message ?? "Error al firmar");
     } finally {
       setLoading(false);
       setOtpOpen(false);

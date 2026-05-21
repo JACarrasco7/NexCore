@@ -140,7 +140,7 @@ export default function AthleteGymMachinesPage() {
 
   if (notFound || !athlete) {
     return (
-      <main className="mx-auto flex w-full max-w-[1480px] flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+      <main className="mx-auto flex w-full max-w-370 flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
         <p className="text-lg font-semibold">Sin perfil de atleta</p>
         <Link
           href="/athlete/onboarding"
@@ -153,7 +153,7 @@ export default function AthleteGymMachinesPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1480px] gap-6 px-6 py-8 md:px-10 lg:px-12">
+    <div className="mx-auto flex w-full max-w-370 gap-6 px-6 py-8 md:px-10 lg:px-12">
       <main className="flex flex-1 flex-col gap-8">
         <SectionIntro
           eyebrow="Tu gimnasio"

@@ -47,6 +47,13 @@ export const env = createEnv({
     MFP_API_HOST: z.string().optional(),
     MFP_API_BASE_URL: z.string().url().optional().or(z.literal('')),
 
+    // ExerciseDB vía RapidAPI (opcional — GIFs animados, plan desde $12.99/mes)
+    EXERCISEDB_RAPIDAPI_KEY: z.string().optional(),
+
+    // Nutritionix (opcional — búsqueda de alimentos premium)
+    NUTRITIONIX_APP_ID: z.string().optional(),
+    NUTRITIONIX_API_KEY: z.string().optional(),
+
     // Observabilidad (FASE C)
     SENTRY_DSN: z.string().url().optional(),
 
@@ -90,6 +97,9 @@ export const env = createEnv({
     MFP_API_KEY: process.env.MFP_API_KEY,
     MFP_API_HOST: process.env.MFP_API_HOST,
     MFP_API_BASE_URL: process.env.MFP_API_BASE_URL,
+    EXERCISEDB_RAPIDAPI_KEY: process.env.EXERCISEDB_RAPIDAPI_KEY,
+    NUTRITIONIX_APP_ID: process.env.NUTRITIONIX_APP_ID,
+    NUTRITIONIX_API_KEY: process.env.NUTRITIONIX_API_KEY,
     SENTRY_DSN: process.env.SENTRY_DSN,
     R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
     R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,

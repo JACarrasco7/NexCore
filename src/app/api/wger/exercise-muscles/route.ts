@@ -10,6 +10,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { checkRateLimit, getClientIp, getRateLimitKey } from "@/lib/rate-limit";
+import { badRequest, unauthorized, tooManyRequests } from "@/lib/api/error-response";
 
 interface WgerMuscle {
   id: number;
@@ -64,9 +67,19 @@ const WGER_MUSCLE_NAMES_ES: Record<number, string> = {
 };
 
 export async function GET(req: NextRequest) {
+  // Authentication check
+  const session = await auth();
+  if (!session?.user?.id) return unauthorized();
+
+  // Rate limiting to prevent DoS via WGER proxy
+  const clientIp = getClientIp(req.headers);
+  const rateLimitKey = getRateLimitKey(clientIp, session.user.id);
+  const { ok } = await checkRateLimit(rateLimitKey, 30, 60); // 30 req/min per user
+  if (!ok) return tooManyRequests();
+
   const name = req.nextUrl.searchParams.get("name")?.trim();
   if (!name) {
-    return NextResponse.json({ error: "Parámetro 'name' requerido" }, { status: 400 });
+    return badRequest("Parámetro 'name' requerido");
   }
 
   const key = name.toLowerCase();

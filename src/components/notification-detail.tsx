@@ -1,6 +1,7 @@
-'use client'
+"use client"
 
 import { useEffect, useState } from 'react'
+import { apiFetch } from '@/lib/store'
 
 type Delivery = {
   id: string
@@ -24,8 +25,7 @@ export default function NotificationDetail({ notificationId }: { notificationId:
   useEffect(() => {
     let mounted = true
     setLoading(true)
-    fetch(`/api/notifications/${notificationId}`)
-      .then((r) => r.json())
+    apiFetch<NotificationData>(`/api/notifications/${notificationId}`)
       .then((json) => {
         if (!mounted) return
         setData(json)

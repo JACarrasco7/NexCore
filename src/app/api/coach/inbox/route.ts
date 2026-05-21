@@ -32,43 +32,58 @@ export async function GET() {
   if (!coachRecord) return NextResponse.json([]);
 
   const athletes = coachRecord.athletes.filter((a) => a.userId != null);
+  const athleteUserIds = athletes.map((a) => a.userId!);
 
-  const results = await Promise.all(
-    athletes.map(async (a) => {
-      const athleteUserId = a.userId!;
+  // Batch fetch: get all relevant messages and unread counts in 2 queries instead of N*2
+  const recentMessages = await prisma.message.findMany({
+    where: {
+      OR: [
+        { fromUserId: myUserId, toUserId: { in: athleteUserIds } },
+        { fromUserId: { in: athleteUserIds }, toUserId: myUserId },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    select: { content: true, createdAt: true, fromUserId: true, toUserId: true },
+  });
 
-      // Último mensaje en cualquier dirección
-      const lastMsg = await prisma.message.findFirst({
-        where: {
-          OR: [
-            { fromUserId: myUserId, toUserId: athleteUserId },
-            { fromUserId: athleteUserId, toUserId: myUserId },
-          ],
-        },
-        orderBy: { createdAt: "desc" },
-        select: { content: true, createdAt: true, fromUserId: true },
-      });
+  const unreadCounts = await prisma.message.groupBy({
+    by: ["fromUserId"],
+    where: { fromUserId: { in: athleteUserIds }, toUserId: myUserId, readAt: null },
+    _count: { id: true },
+  });
 
-      // No leídos recibidos del atleta
-      const unreadCount = await prisma.message.count({
-        where: { fromUserId: athleteUserId, toUserId: myUserId, readAt: null },
-      });
+  // Build maps for fast lookup
+  const lastMessageByAthleteId = new Map<string, typeof recentMessages[0]>();
+  for (const msg of recentMessages) {
+    const athleteUserId = msg.fromUserId === myUserId ? msg.toUserId : msg.fromUserId;
+    if (!lastMessageByAthleteId.has(athleteUserId)) {
+      lastMessageByAthleteId.set(athleteUserId, msg);
+    }
+  }
 
-      return {
-        athleteId: a.id,
-        userId: athleteUserId,
-        displayName: a.fullName ?? a.user?.name ?? a.user?.email ?? "Atleta",
-        lastMessage: lastMsg
-          ? {
-              content: lastMsg.content,
-              createdAt: lastMsg.createdAt.toISOString(),
-              fromMe: lastMsg.fromUserId === myUserId,
-            }
-          : null,
-        unreadCount,
-      };
-    })
-  );
+  const unreadByAthleteUserId = new Map<string, number>();
+  for (const count of unreadCounts) {
+    unreadByAthleteUserId.set(count.fromUserId, count._count.id);
+  }
+
+  const results = athletes.map((a) => {
+    const athleteUserId = a.userId!;
+    const lastMsg = lastMessageByAthleteId.get(athleteUserId);
+
+    return {
+      athleteId: a.id,
+      userId: athleteUserId,
+      displayName: a.fullName ?? a.user?.name ?? a.user?.email ?? "Atleta",
+      lastMessage: lastMsg
+        ? {
+            content: lastMsg.content,
+            createdAt: lastMsg.createdAt.toISOString(),
+            fromMe: lastMsg.fromUserId === myUserId,
+          }
+        : null,
+      unreadCount: unreadByAthleteUserId.get(athleteUserId) ?? 0,
+    };
+  });
 
   // Ordenar: más reciente primero
   results.sort((a, b) => {

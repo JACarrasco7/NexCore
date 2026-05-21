@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/lib/notifications";
 import { auth } from "@/auth";
 import { paginationSchema, buildPaginationResponse } from "@/lib/api";
+import { checkRateLimit, getRateLimitKey, getClientIp } from "@/lib/rate-limit";
 
 /**
  * Verify that myId and withUserId share a valid coach↔athlete relationship.
@@ -36,6 +37,22 @@ export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
+  // Rate limiting: 60 requests per 60 seconds per user (1 req/s)
+  const clientIp = getClientIp(req.headers);
+  const rateLimitKey = getRateLimitKey(clientIp, session.user.id);
+  const { ok, remaining, resetAt } = await checkRateLimit(rateLimitKey, 60, 60);
+  if (!ok) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again later." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": Math.ceil((resetAt - Date.now()) / 1000).toString(),
+        },
+      }
+    );
+  }
+
   const withUserId = req.nextUrl.searchParams.get("withUserId");
   if (!withUserId) return NextResponse.json({ error: "withUserId requerido" }, { status: 400 });
 
@@ -45,9 +62,11 @@ export async function GET(req: NextRequest) {
   const hasAccess = await verifyConversationAccess(myId, withUserId);
   if (!hasAccess) return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
 
+  const takeParam = req.nextUrl.searchParams.get("take") ?? req.nextUrl.searchParams.get("limit") ?? undefined;
+  const cursorParam = req.nextUrl.searchParams.get("cursor") ?? undefined;
   const pagination = paginationSchema.safeParse({
-    take: req.nextUrl.searchParams.get("take") ?? 30,
-    cursor: req.nextUrl.searchParams.get("cursor") ?? undefined,
+    take: takeParam,
+    cursor: cursorParam,
   });
   const { take, cursor } = pagination.success ? pagination.data : { take: 30, cursor: undefined };
 

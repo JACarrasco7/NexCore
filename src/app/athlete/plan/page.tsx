@@ -177,7 +177,7 @@ export default function MyPlanPage() {
 
   if (loading || loadingPlans) {
     return (
-      <main className="mx-auto flex w-full max-w-[1480px] flex-1 flex-col gap-4 px-6 py-10">
+      <main className="mx-auto flex w-full max-w-370 flex-1 flex-col gap-4 px-6 py-10">
         <Skeleton className="h-8 w-48 rounded-2xl" />
         <Skeleton className="h-4 w-64 rounded-2xl" />
         <Skeleton className="h-32 rounded-3xl" />
@@ -202,7 +202,7 @@ export default function MyPlanPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1480px] gap-6 px-6 py-8 md:px-10 lg:px-12">
+    <div className="mx-auto flex w-full max-w-370 gap-6 px-6 py-8 md:px-10 lg:px-12">
       <main className="flex min-w-0 flex-1 flex-col gap-8">
         {/* Header */}
         <div className="flex items-start justify-between gap-4">

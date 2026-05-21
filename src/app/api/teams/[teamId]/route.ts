@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
+import { parseJsonOrError } from '@/lib/api/json-parser'
+import { unauthorized, forbidden, badRequest, notFound, serverError } from '@/lib/api/error-response'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +15,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ te
   const session = await auth()
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    return unauthorized('No autorizado')
   }
 
   const role = (session.user as { role?: string }).role
@@ -29,26 +31,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ te
   })
 
   if (!membership) {
-    return NextResponse.json(
-      { error: 'No tienes permisos para editar este equipo' },
-      { status: 403 }
-    )
+    return forbidden('No tienes permisos para editar este equipo')
   }
 
   // Verificar que el equipo existe
   const team = await prisma.team.findUnique({ where: { id: teamId } })
   if (!team) {
-    return NextResponse.json({ error: 'Equipo no encontrado' }, { status: 404 })
+    return notFound('Equipo no encontrado')
   }
 
-  const body = await request.json().catch(() => ({}))
-  const { name, slug } = body
+  const parsed = await parseJsonOrError(request)
+  if (!parsed.ok) return parsed.error
+  const { name, slug } = parsed.data as any
 
   const updateData: any = {}
 
   if (name !== undefined) {
     if (typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json({ error: 'name debe ser un string no vacío' }, { status: 400 })
+      return badRequest('name debe ser un string no vacío')
     }
     updateData.name = name.trim()
   }
@@ -56,16 +56,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ te
   if (slug !== undefined) {
     const trimmedSlug = slug === null ? null : String(slug).trim().toLowerCase()
     if (trimmedSlug && !/^[a-z0-9-]+$/.test(trimmedSlug)) {
-      return NextResponse.json(
-        { error: 'slug debe contener solo letras minúsculas, números y guiones' },
-        { status: 400 }
-      )
+      return badRequest('slug debe contener solo letras minúsculas, números y guiones')
     }
     updateData.slug = trimmedSlug
   }
 
   if (Object.keys(updateData).length === 0) {
-    return NextResponse.json({ error: 'No hay campos para actualizar' }, { status: 400 })
+    return badRequest('No hay campos para actualizar')
   }
 
   try {
@@ -87,7 +84,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ te
     }
 
     console.error('[teams-update]', err)
-    return NextResponse.json({ error: 'Error actualizando equipo' }, { status: 500 })
+    return serverError('Error actualizando equipo')
   }
 }
 
@@ -104,7 +101,7 @@ export async function DELETE(
   const session = await auth()
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    return unauthorized('No autorizado')
   }
 
   const membership = await prisma.teamUserMembership.findFirst({
@@ -117,15 +114,12 @@ export async function DELETE(
   })
 
   if (!membership) {
-    return NextResponse.json(
-      { error: 'No tienes permisos para eliminar este equipo' },
-      { status: 403 }
-    )
+    return forbidden('No tienes permisos para eliminar este equipo')
   }
 
   const team = await prisma.team.findUnique({ where: { id: teamId } })
   if (!team) {
-    return NextResponse.json({ error: 'Equipo no encontrado' }, { status: 404 })
+    return notFound('Equipo no encontrado')
   }
 
   // Verificar si hay atletas activos en el equipo
@@ -153,6 +147,6 @@ export async function DELETE(
     return NextResponse.json({ success: true })
   } catch (err: any) {
     console.error('[teams-delete]', err)
-    return NextResponse.json({ error: 'Error eliminando equipo' }, { status: 500 })
+    return serverError('Error eliminando equipo')
   }
 }

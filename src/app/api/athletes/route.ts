@@ -3,6 +3,10 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
 import { Goal } from '@prisma/client'
 import { randomUUID } from 'node:crypto'
+import { parseJsonOrError } from '@/lib/api/json-parser'
+import { safeJsonParse } from '@/lib/json-utils'
+import { checkRateLimit, getClientIp, getRateLimitKey } from '@/lib/rate-limit'
+import { paginationSchema, buildPaginationResponse } from '@/lib/api'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,7 +67,8 @@ export async function GET(request: Request) {
       return NextResponse.json(
         {
           error: 'Coach no tiene equipos asignados',
-          athletes: [],
+          items: [],
+          nextCursor: null,
           teamId: null,
         },
         { status: 200 }
@@ -85,12 +90,33 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
   }
 
+  // Parse pagination params
+  const { searchParams } = new URL(request.url)
+  const takeParam = searchParams.get('take') ?? searchParams.get('limit') ?? undefined
+  const cursorParam = searchParams.get('cursor') ?? undefined
+  const paginationParams = paginationSchema.safeParse({
+    take: takeParam,
+    cursor: cursorParam,
+  })
+
+  if (!paginationParams.success) {
+    return NextResponse.json({ error: 'Invalid pagination params' }, { status: 400 })
+  }
+
+  const { take, cursor } = paginationParams.data
+
+  // Fetch take+1 to detect if there's a next page
   const athletes = await prisma.athlete.findMany({
     where: athleteWhere,
     orderBy: { createdAt: 'desc' },
+    take: take + 1,
+    ...(cursor && { skip: 1, cursor: { id: cursor } }),
     include: { user: { select: { email: true } } },
   })
-  const mapped = athletes.map((a) => ({
+
+  const { items, nextCursor } = buildPaginationResponse(athletes, take)
+
+  const mapped = items.map((a) => ({
     id: a.id,
     fullName: a.fullName,
     goal: a.goal.toLowerCase().replace('_', '-'),
@@ -100,151 +126,167 @@ export async function GET(request: Request) {
     primaryComment: a.primaryComment,
     teamId: a.teamId,
     coachName: 'Coach',
-    healthConnections: a.healthConnections ? JSON.parse(a.healthConnections) : [],
+    healthConnections: safeJsonParse(a.healthConnections, []),
   }))
-  return NextResponse.json(mapped)
+  return NextResponse.json({ items: mapped, nextCursor })
 }
 
 export async function POST(request: Request) {
-  const body = await request.json()
-  if (!body.fullName) {
-    return NextResponse.json({ error: 'fullName es requerido' }, { status: 400 })
-  }
-
-  const session = await auth()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  }
-
-  const sessionRole = (session.user as { role?: string }).role
-  if (sessionRole !== 'COACH' && sessionRole !== 'ADMIN') {
-    return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
-  }
-
-  let coachId: string
-  let teamId: string | null
-
-  if (sessionRole === 'COACH') {
-    // Coach creates athlete in own team
-    const coach = await prisma.coach.findUnique({ where: { userId: session.user.id } })
-    if (!coach) {
-      return NextResponse.json({ error: 'Perfil de coach no encontrado' }, { status: 403 })
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
-    coachId = coach.id
 
-    // Resolve team from active memberships
-    const memberships = await prisma.teamUserMembership.findMany({
-      where: { userId: session.user.id, isActive: true },
-      select: { teamId: true },
-      orderBy: { createdAt: 'asc' },
+    // Rate limiting to prevent athlete creation spam
+    const clientIp = getClientIp(request.headers)
+    const rateLimitKey = getRateLimitKey(clientIp, session.user.id)
+    const { ok } = await checkRateLimit(rateLimitKey, 10, 60) // 10 req/min per user
+    if (!ok) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+
+    const result = await parseJsonOrError(request)
+    if (!result.ok) return result.error
+    const body = result.data as any // Already validated by parseJsonOrError
+    if (!body?.fullName) {
+      return NextResponse.json({ error: 'fullName es requerido' }, { status: 400 })
+    }
+
+    const sessionRole = (session.user as { role?: string }).role
+    if (sessionRole !== 'COACH' && sessionRole !== 'ADMIN') {
+      return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+    }
+
+    let coachId: string
+    let teamId: string | null
+
+    if (sessionRole === 'COACH') {
+      // Coach creates athlete in own team
+      const coach = await prisma.coach.findUnique({ where: { userId: session.user.id } })
+      if (!coach) {
+        return NextResponse.json({ error: 'Perfil de coach no encontrado' }, { status: 403 })
+      }
+      coachId = coach.id
+
+      // Resolve team from active memberships
+      const memberships = await prisma.teamUserMembership.findMany({
+        where: { userId: session.user.id, isActive: true },
+        select: { teamId: true },
+        orderBy: { createdAt: 'asc' },
+      })
+
+      if (memberships.length === 0) {
+        return NextResponse.json(
+          {
+            error: 'Coach no tiene equipos asignados',
+          },
+          { status: 403 }
+        )
+      }
+
+      const allowedTeamIds = memberships.map((m) => m.teamId)
+      teamId =
+        body.teamId && allowedTeamIds.includes(body.teamId)
+          ? body.teamId
+          : (allowedTeamIds[0] ?? null)
+    } else {
+      // ADMIN: requires both coachId and teamId
+      if (!body.coachId || !body.teamId) {
+        return NextResponse.json(
+          {
+            error: 'ADMIN requiere coachId y teamId',
+          },
+          { status: 400 }
+        )
+      }
+
+      // Verify coach exists
+      const coach = await prisma.coach.findUnique({ where: { id: body.coachId } })
+      if (!coach) {
+        return NextResponse.json({ error: 'Coach no encontrado' }, { status: 404 })
+      }
+
+      // Verify coach is member of requested team
+      const membership = await prisma.teamUserMembership.findFirst({
+        where: {
+          userId: coach.userId,
+          teamId: body.teamId,
+          isActive: true,
+        },
+      })
+      if (!membership) {
+        return NextResponse.json(
+          {
+            error: 'Coach no es miembro del equipo',
+          },
+          { status: 403 }
+        )
+      }
+
+      coachId = body.coachId
+      teamId = body.teamId
+    }
+
+    const contactEmail = body.contactEmail ? String(body.contactEmail).trim().toLowerCase() : null
+
+    const athleteEmail = `athlete-${randomUUID()}@demo.local`
+    const { athleteUser, athlete } = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: { email: athleteEmail, name: body.fullName, role: 'ATHLETE' },
+      })
+
+      const createdAthlete = await tx.athlete.create({
+        data: {
+          userId: createdUser.id,
+          coachId: coachId,
+          teamId: teamId,
+          fullName: body.fullName,
+          phone: body.phone ? String(body.phone).trim() : null,
+          contactEmail: contactEmail ?? athleteEmail,
+          primaryComment: body.primaryComment ? String(body.primaryComment).trim() : null,
+          goal: goalEnum(body.goal ?? 'volumen'),
+          phaseLabel: body.phaseLabel ?? 'Semana 1',
+          measurementCadence: cadenceEnum(body.measurementCadence),
+          measurementEveryDays:
+            body.measurementCadence === 'custom-days' ? Number(body.measurementEveryDays ?? 7) : null,
+          reviewCadence: reviewCadenceEnum(body.reviewCadence),
+          reviewEveryDays:
+            body.reviewCadence === 'custom-days' ? Number(body.reviewEveryDays ?? 7) : null,
+          healthConnections: JSON.stringify(body.healthConnections ?? []),
+        },
+      })
+
+      return { athleteUser: createdUser, athlete: createdAthlete }
     })
 
-    if (memberships.length === 0) {
-      return NextResponse.json(
-        {
-          error: 'Coach no tiene equipos asignados',
-        },
-        { status: 403 }
-      )
-    }
+    const coach = await prisma.coach.findUnique({
+      where: { id: coachId },
+      select: { displayName: true },
+    })
 
-    const allowedTeamIds = memberships.map((m) => m.teamId)
-    teamId =
-      body.teamId && allowedTeamIds.includes(body.teamId)
-        ? body.teamId
-        : (allowedTeamIds[0] ?? null)
-  } else {
-    // ADMIN: requires both coachId and teamId
-    if (!body.coachId || !body.teamId) {
-      return NextResponse.json(
-        {
-          error: 'ADMIN requiere coachId y teamId',
-        },
-        { status: 400 }
-      )
-    }
-
-    // Verify coach exists
-    const coach = await prisma.coach.findUnique({ where: { id: body.coachId } })
-    if (!coach) {
-      return NextResponse.json({ error: 'Coach no encontrado' }, { status: 404 })
-    }
-
-    // Verify coach is member of requested team
-    const membership = await prisma.teamUserMembership.findFirst({
-      where: {
-        userId: coach.userId,
-        teamId: body.teamId,
-        isActive: true,
+    return NextResponse.json(
+      {
+        id: athlete.id,
+        fullName: athlete.fullName,
+        goal: athlete.goal.toLowerCase().replace('_', '-'),
+        phaseLabel: athlete.phaseLabel,
+        phone: athlete.phone,
+        contactEmail: athleteUser.email,
+        primaryComment: athlete.primaryComment,
+        teamId: athlete.teamId,
+        measurementCadence: cadenceToApi(athlete.measurementCadence),
+        measurementEveryDays: athlete.measurementEveryDays,
+        reviewCadence: cadenceToApi(athlete.reviewCadence),
+        reviewEveryDays: athlete.reviewEveryDays,
+        coachName: coach?.displayName ?? 'Coach',
+        healthConnections: body.healthConnections ?? [],
       },
-    })
-    if (!membership) {
-      return NextResponse.json(
-        {
-          error: 'Coach no es miembro del equipo',
-        },
-        { status: 403 }
-      )
-    }
-
-    coachId = body.coachId
-    teamId = body.teamId
+      { status: 201 }
+    )
+  } catch (error) {
+    console.error('POST /api/athletes failed:', error)
+    return NextResponse.json(
+      { error: 'Error al crear atleta' },
+      { status: 500 }
+    )
   }
-
-  const contactEmail = body.contactEmail ? String(body.contactEmail).trim().toLowerCase() : null
-
-  const athleteEmail = `athlete-${randomUUID()}@demo.local`
-  const { athleteUser, athlete } = await prisma.$transaction(async (tx) => {
-    const createdUser = await tx.user.create({
-      data: { email: athleteEmail, name: body.fullName, role: 'ATHLETE' },
-    })
-
-    const createdAthlete = await tx.athlete.create({
-      data: {
-        userId: createdUser.id,
-        coachId: coachId,
-        teamId: teamId,
-        fullName: body.fullName,
-        phone: body.phone ? String(body.phone).trim() : null,
-        contactEmail: contactEmail ?? athleteEmail,
-        primaryComment: body.primaryComment ? String(body.primaryComment).trim() : null,
-        goal: goalEnum(body.goal ?? 'volumen'),
-        phaseLabel: body.phaseLabel ?? 'Semana 1',
-        measurementCadence: cadenceEnum(body.measurementCadence),
-        measurementEveryDays:
-          body.measurementCadence === 'custom-days' ? Number(body.measurementEveryDays ?? 7) : null,
-        reviewCadence: reviewCadenceEnum(body.reviewCadence),
-        reviewEveryDays:
-          body.reviewCadence === 'custom-days' ? Number(body.reviewEveryDays ?? 7) : null,
-        healthConnections: JSON.stringify(body.healthConnections ?? []),
-      },
-    })
-
-    return { athleteUser: createdUser, athlete: createdAthlete }
-  })
-
-  const coach = await prisma.coach.findUnique({
-    where: { id: coachId },
-    select: { displayName: true },
-  })
-
-  return NextResponse.json(
-    {
-      id: athlete.id,
-      fullName: athlete.fullName,
-      goal: athlete.goal.toLowerCase().replace('_', '-'),
-      phaseLabel: athlete.phaseLabel,
-      phone: athlete.phone,
-      contactEmail: athleteUser.email,
-      primaryComment: athlete.primaryComment,
-      teamId: athlete.teamId,
-      measurementCadence: cadenceToApi(athlete.measurementCadence),
-      measurementEveryDays: athlete.measurementEveryDays,
-      reviewCadence: cadenceToApi(athlete.reviewCadence),
-      reviewEveryDays: athlete.reviewEveryDays,
-      coachName: coach?.displayName ?? 'Coach',
-      healthConnections: body.healthConnections ?? [],
-    },
-    { status: 201 }
-  )
 }

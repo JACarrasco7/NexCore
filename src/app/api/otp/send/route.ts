@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { auth } from '@/auth'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { OtpType } from '@prisma/client'
+import { parseJsonOrError } from '@/lib/api/json-parser'
 
 const schema = z.object({
   phone: z.string().min(7).max(15),
@@ -37,8 +38,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
-    const { phone, purpose } = schema.parse(body)
+    const parseResult = await parseJsonOrError(request)
+    if (!parseResult.ok) return parseResult.error
+    const { phone, purpose } = schema.parse(parseResult.data)
 
     // Generar OTP (6 dígitos)
     const otp = Math.floor(Math.random() * 1000000)

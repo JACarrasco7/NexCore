@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { apiFetch } from '@/lib/store'
 
 type CoachMe = { id: string; displayName: string }
 
@@ -16,9 +17,8 @@ export function useCoachMe(): { coach: CoachMe | null; loading: boolean } {
       setLoading(false)
       return
     }
-    fetch('/api/me/coach')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
+    apiFetch('/api/me/coach')
+      .then((data: any) => {
         if (data) setCoach(data)
         setLoading(false)
       })

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import SignDocumentButton from "./sign-document-button";
+import { apiFetch } from '@/lib/store'
 
 type Doc = {
   id: string;
@@ -74,8 +75,7 @@ export function DocumentPanel({ athleteId }: { athleteId: string }) {
       }
     }
 
-    fetch(`/api/documents?athleteId=${athleteId}`)
-      .then((r) => r.json())
+    apiFetch<Doc[]>(`/api/documents?athleteId=${athleteId}`)
       .then((data) => {
         const nextDocs = Array.isArray(data) ? data : [];
         setDocs(nextDocs);

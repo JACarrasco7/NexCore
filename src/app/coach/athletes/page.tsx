@@ -1,4 +1,4 @@
-﻿'use client'
+﻿"use client"
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
@@ -7,7 +7,7 @@ import { Modal } from '@/components/ui/modal'
 import { useToast } from '@/components/ui/toast'
 import { ViewModeToggle } from '@/components/ui/view-mode-toggle'
 import { PageShell, PageHeader } from '@/components/layout'
-import { useAthletes } from '@/lib/store'
+import { useAthletes, apiFetch } from '@/lib/store'
 import { useCoachMe } from '@/lib/use-coach-me'
 import type { AthleteProfile } from '@/lib/domain'
 
@@ -139,20 +139,17 @@ export default function AthletesPage() {
   const [catalogGoals, setCatalogGoals] = useState<CatalogGoal[]>(FALLBACK_GOALS)
 
   useEffect(() => {
-    fetch('/api/teams/catalog')
-      .then((r) => (r.ok ? r.json() : null))
-      .then(
-        (data: { goals?: Array<{ code: string; label: string; isVisible: boolean }> } | null) => {
-          if (!data?.goals?.length) return
-          // API returns codes in UPPERCASE; normalize to lowercase-dash for matching athlete.goal
-          const mapped: CatalogGoal[] = data.goals.map((g) => ({
-            code: g.code.toLowerCase().replace('_', '-'),
-            label: g.label,
-            isVisible: g.isVisible,
-          }))
-          setCatalogGoals(mapped)
-        }
-      )
+    apiFetch<{ goals?: Array<{ code: string; label: string; isVisible: boolean }> }>('/api/teams/catalog')
+      .then((data) => {
+        if (!data?.goals?.length) return
+        // API returns codes in UPPERCASE; normalize to lowercase-dash for matching athlete.goal
+        const mapped: CatalogGoal[] = data.goals.map((g) => ({
+          code: g.code.toLowerCase().replace('_', '-'),
+          label: g.label,
+          isVisible: g.isVisible,
+        }))
+        setCatalogGoals(mapped)
+      })
       .catch(() => void 0)
   }, [])
 
@@ -264,7 +261,7 @@ export default function AthletesPage() {
                     href="/athlete/onboarding"
                     className="bg-accent hover:bg-accent-strong mt-2 rounded-full px-6 py-3 text-sm font-semibold text-white transition"
                   >
-                    Comenzar onboarding
+                    Añadir nuevo atleta
                   </Link>
                 }
                 className="rounded-2xl py-20"

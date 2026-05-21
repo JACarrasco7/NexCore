@@ -132,7 +132,7 @@ export default function CheckInPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1480px] gap-6 px-6 py-8 md:px-10 lg:px-12">
+    <div className="mx-auto flex w-full max-w-370 gap-6 px-6 py-8 md:px-10 lg:px-12">
       <main className="flex min-w-0 flex-1 flex-col gap-8">
         <SectionIntro
           eyebrow="Revisión semanal"

@@ -251,7 +251,7 @@ function AsideContent({
               const pts = overview.weightTrend.filter((p) => p.weightKg != null && p.weightKg > 0).slice(-12);
               const max = Math.max(...pts.map((p) => p.weightKg as number), 1);
               return pts.map((p, i) => (
-                <div key={i} className="min-h-[2px] flex-1 rounded-sm bg-accent/40"
+                <div key={i} className="min-h-0.5 flex-1 rounded-sm bg-accent/40"
                   style={{ height: `${((p.weightKg as number) / max) * 100}%` }} title={`${p.weightKg} kg`} />
               ));
             })()}
@@ -2191,7 +2191,7 @@ function ResumenTab({ overview }: { overview: Overview }) {
       {recentSessions.length > 0 && (
         <div>
           <h3 className="mb-3 font-semibold text-foreground/70">Sesiones recientes</h3>
-          <div className="max-h-[300px] space-y-2 overflow-y-auto pr-1">
+          <div className="max-h-75 space-y-2 overflow-y-auto pr-1">
             {recentSessions.slice(0, 12).map((s) => (
               <div key={s.id} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
                 <div>
@@ -2253,7 +2253,7 @@ function CheckInsTab({
       {checkIns.length === 0 ? (
         <EmptyCard text="Sin check-ins registrados" tall />
       ) : (
-        <div className="max-h-[680px] space-y-3 overflow-y-auto pr-1">
+        <div className="max-h-170 space-y-3 overflow-y-auto pr-1">
           {checkIns.map((ci) => {
             const adhClass = ci.adherencePct >= 80
               ? "text-success"
@@ -2555,7 +2555,7 @@ function AthleteDetailContent() {
   if (loading) {
     return (
       <div className="mx-auto flex w-full max-w-[1480px] gap-6 px-6 py-8 md:px-10 lg:px-12">
-        <div className="hidden w-[340px] shrink-0 space-y-3 xl:block">
+        <div className="hidden w-85 shrink-0 space-y-3 xl:block">
           <Skeleton className="h-44 rounded-2xl" />
           <Skeleton className="h-24 rounded-2xl" />
         </div>
@@ -2670,7 +2670,7 @@ function AthleteDetailContent() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-[1480px] px-6 py-6 md:px-10 lg:px-12">
+    <div className="mx-auto w-full max-w-370 px-6 py-6 md:px-10 lg:px-12">
       <SplitLayout aside={aside} main={main} />
     </div>
   );
@@ -2680,7 +2680,7 @@ export default function AthleteDetailPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto flex w-full max-w-[1480px] gap-6 px-6 py-8 md:px-10 lg:px-12">
+        <div className="mx-auto flex w-full max-w-370 gap-6 px-6 py-8 md:px-10 lg:px-12">
           <Skeleton className="hidden h-64 w-[340px] shrink-0 rounded-2xl xl:block" />
           <div className="flex-1 space-y-4">
             <Skeleton className="h-10 rounded-2xl" />

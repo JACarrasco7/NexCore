@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { apiFetch } from '@/lib/store'
 import { useToast } from "@/components/ui/toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -35,8 +36,8 @@ export function AthletePhotosTab({ athleteId }: Props) {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/progress-photos?athleteId=${athleteId}`);
-      if (res.ok) setPhotos(await res.json());
+      const data = await apiFetch<Photo[]>(`/api/progress-photos?athleteId=${athleteId}`).catch(() => [])
+      setPhotos(Array.isArray(data) ? data : [])
     } finally {
       setLoading(false);
     }
@@ -92,7 +93,7 @@ export function AthletePhotosTab({ athleteId }: Props) {
                   </div>
                 </div>
               ) : (
-                <div key={i} className="flex aspect-[3/4] items-center justify-center rounded-3xl border border-dashed border-line text-sm text-foreground/30">
+                <div key={i} className="flex aspect-3/4 items-center justify-center rounded-3xl border border-dashed border-line text-sm text-foreground/30">
                   Selecciona una foto
                 </div>
               )
@@ -105,7 +106,7 @@ export function AthletePhotosTab({ athleteId }: Props) {
       {loading ? (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="aspect-[3/4] animate-pulse rounded-3xl bg-surface-strong" />
+            <div key={i} className="aspect-3/4 animate-pulse rounded-3xl bg-surface-strong" />
           ))}
         </div>
       ) : photos.length === 0 ? (

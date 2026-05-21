@@ -4,6 +4,8 @@ import { validateOtp } from '@/lib/otp'
 import { signDocument } from '@/lib/signature'
 import { prisma } from '@/lib/prisma'
 import { OtpType } from '@prisma/client'
+import { parseJsonOrError } from '@/lib/api/json-parser'
+import { badRequest, unauthorized, forbidden, serverError } from '@/lib/api/error-response'
 
 const bodySchema = {
   otp: 'string',
@@ -22,14 +24,16 @@ function validateBody(body: any) {
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session?.user) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    return unauthorized('No autorizado')
   }
 
   const { id } = await params
-  const body = await request.json().catch(() => ({}))
+  const parsed = await parseJsonOrError(request)
+  if (!parsed.ok) return parsed.error
+  const body = parsed.data as any
   const errorMessage = validateBody(body)
   if (errorMessage) {
-    return NextResponse.json({ error: errorMessage }, { status: 400 })
+    return badRequest(errorMessage)
   }
 
   const { otp, dni } = body as { otp: string; dni: string; checkboxAccepted: boolean }
@@ -42,10 +46,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   })
 
   if (!athlete) {
-    return NextResponse.json(
-      { error: 'Solo atletas pueden firmar este documento' },
-      { status: 403 }
-    )
+    return forbidden('Solo atletas pueden firmar este documento')
   }
 
   const validation = await validateOtp(userId, otp, OtpType.SIGNATURE)
@@ -73,9 +74,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ ok: true, signedUrl: signed.signedUrl, signature: signed.signature })
   } catch (error) {
     console.error('[documents/[id]/sign]', error)
-    return NextResponse.json(
-      { error: (error as Error).message ?? 'Error interno' },
-      { status: 400 }
-    )
+    return serverError((error as Error).message ?? 'Error interno')
   }
 }

@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
 import crypto from 'crypto'
 import { sendEmail } from '@/lib/email'
+import { parseJsonOrError } from '@/lib/api/json-parser'
+import { unauthorized, forbidden, badRequest, notFound, serverError } from '@/lib/api/error-response'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,12 +15,12 @@ function generateToken(): string {
 export async function GET(request: Request) {
   const session = await auth()
   if (!session?.user?.id) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    return unauthorized('No autorizado')
   }
 
   const role = (session.user as { role?: string }).role ?? 'ATHLETE'
   if (role !== 'COACH' && role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+    return forbidden('Sin acceso')
   }
 
   const { searchParams } = new URL(request.url)
@@ -55,7 +57,56 @@ export async function GET(request: Request) {
   })
 
   if (ownMemberships.length === 0) {
-    return NextResponse.json({ teamId: null, coaches: [] })
+    // Fallback: el coach no tiene fila en TeamUserMembership (DB legacy o creado sin flujo estándar).
+    // Auto-reparar: buscar o crear un team y registrar la membresía, luego devolver el coach propio.
+    const selfCoach = await prisma.coach.findUnique({
+      where: { userId: session.user.id },
+      include: { user: true },
+    })
+    if (!selfCoach) return NextResponse.json({ teamId: null, coaches: [] })
+
+    // Buscar si existe algún team creado por este usuario (sin membresía activa)
+    let repairTeam = await prisma.team.findFirst({
+      where: { userMemberships: { some: { userId: session.user.id } } },
+    })
+
+    if (!repairTeam) {
+      // Crear team propio
+      repairTeam = await prisma.team.create({
+        data: {
+          name: `${selfCoach.displayName} Team`,
+          slug: `${selfCoach.displayName.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
+          settings: {
+            create: {
+              displayName: `${selfCoach.displayName} Team`,
+              locale: 'es-ES',
+              timezone: 'Europe/Madrid',
+              currency: 'EUR',
+            },
+          },
+        },
+      })
+    }
+
+    // Upsert membresía
+    await prisma.teamUserMembership.upsert({
+      where: { teamId_userId: { teamId: repairTeam.id, userId: session.user.id } },
+      create: { teamId: repairTeam.id, userId: session.user.id, role: 'ADMIN', isActive: true },
+      update: { isActive: true },
+    })
+
+    return NextResponse.json({
+      teamId: repairTeam.id,
+      coaches: [
+        {
+          coachId: selfCoach.id,
+          displayName: selfCoach.displayName,
+          email: selfCoach.user.email,
+          phone: selfCoach.phone,
+          role: 'ADMIN',
+        },
+      ],
+    })
   }
 
   const allowedTeamIds = ownMemberships.map((m) => m.teamId)
@@ -86,16 +137,17 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await auth()
   if (!session?.user?.id) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    return unauthorized('No autorizado')
   }
 
   const role = (session.user as { role?: string }).role ?? 'ATHLETE'
   if (role !== 'COACH' && role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+    return forbidden('Sin acceso')
   }
 
-  const body = await request.json().catch(() => ({}))
-  const { teamId, invitedEmail, inviteRole = 'MEMBER' } = body
+  const parsed = await parseJsonOrError(request)
+  if (!parsed.ok) return parsed.error
+  const { teamId, invitedEmail, inviteRole = 'MEMBER' } = parsed.data as any
 
   if (!teamId || !invitedEmail) {
     return NextResponse.json({ error: 'teamId y invitedEmail requeridos' }, { status: 400 })
@@ -112,14 +164,14 @@ export async function POST(request: Request) {
       },
     })
     if (!hasAdminRole) {
-      return NextResponse.json({ error: 'No eres admin del equipo' }, { status: 403 })
+      return forbidden('No eres admin del equipo')
     }
   }
 
   // Verificar que el equipo existe
   const team = await prisma.team.findUnique({ where: { id: teamId } })
   if (!team) {
-    return NextResponse.json({ error: 'Equipo no encontrado' }, { status: 404 })
+    return notFound('Equipo no encontrado')
   }
 
   // Evitar invitación duplicada

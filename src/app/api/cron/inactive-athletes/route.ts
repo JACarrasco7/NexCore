@@ -62,9 +62,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, notified: 0 });
   }
 
-  // 3. Batch-create notificaciones en transacción
-  await prisma.$transaction(
-    inactiveAthletes.map((athlete) => {
+  // 3. Batch-create notificaciones en transacción (solo para atletas con coach)
+  const notificationsToCreate = inactiveAthletes
+    .filter((a) => a.coach !== null) // Solo atletas con coach asignado
+    .map((athlete) => {
       const lastCheckIn = athlete.checkIns[0]?.date ?? null;
       const lastSession = athlete.sessionLogs[0]?.date ?? null;
       const mostRecent = [lastCheckIn, lastSession]
@@ -77,7 +78,7 @@ export async function POST(req: Request) {
 
       return prisma.notification.create({
         data: {
-          userId: athlete.coach.userId,
+          userId: athlete.coach!.userId, // Safe because of filter above
           type: NotificationType.ALERT_ADHERENCE_LOW,
           title: `${athlete.fullName} lleva ${daysInactive ?? "varios"} días sin actividad`,
           body: daysInactive
@@ -86,8 +87,11 @@ export async function POST(req: Request) {
           link: `/coach/athletes/${athlete.id}`,
         },
       });
-    })
-  );
+    });
 
-  return NextResponse.json({ ok: true, notified: inactiveAthletes.length });
+  if (notificationsToCreate.length > 0) {
+    await prisma.$transaction(notificationsToCreate);
+  }
+
+  return NextResponse.json({ ok: true, notified: notificationsToCreate.length });
 }

@@ -1,9 +1,10 @@
-'use client'
+"use client"
 
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useToast } from '@/components/ui/toast'
+import { apiFetch, apiPost } from '@/lib/store'
 import { Skeleton } from '@/components/ui/skeleton'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -41,19 +42,10 @@ function AcceptInviteContent() {
 
     async function loadInvite() {
       try {
-        const res = await fetch(`/api/teams/invites/${token}/preview`)
-
-        if (!res.ok) {
-          const err = (await res.json()) as { error?: string }
-          setError(err.error ?? 'Invitación no válida')
-          setLoading(false)
-          return
-        }
-
-        const data = (await res.json()) as InviteData
+        const data = await apiFetch<InviteData>(`/api/teams/invites/${token}/preview`)
         setInviteData(data)
       } catch (err) {
-        setError('Error al cargar la invitación')
+        setError('Invitación no válida')
       } finally {
         setLoading(false)
       }
@@ -67,25 +59,13 @@ function AcceptInviteContent() {
     setAccepting(true)
 
     try {
-      const res = await fetch(`/api/teams/invites/${token}`, {
-        method: 'POST',
-      })
-
-      if (res.ok) {
-        const result = (await res.json()) as { team?: { name: string } }
-        pushToast({
-          title: `Bienvenido a ${result.team?.name || 'tu equipo'}`,
-          variant: 'success',
-        })
-        // Redirigir al dashboard del coach
+      try {
+        const result = await apiPost<{ team?: { name: string } }>(`/api/teams/invites/${token}`, {})
+        pushToast({ title: `Bienvenido a ${result.team?.name || 'tu equipo'}`, variant: 'success' })
         router.push('/coach')
-      } else {
-        const err = (await res.json()) as { error?: string }
-        setError(err.error ?? 'Error al aceptar')
-        pushToast({
-          title: err.error ?? 'Error al aceptar',
-          variant: 'error',
-        })
+      } catch (err: any) {
+        setError(err?.message ?? 'Error al aceptar')
+        pushToast({ title: err?.message ?? 'Error al aceptar', variant: 'error' })
       }
     } finally {
       setAccepting(false)

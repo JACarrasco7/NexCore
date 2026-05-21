@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { apiFetch, apiPost } from "@/lib/store";
 import {
   AreaChart,
   Area,
@@ -208,51 +209,47 @@ export function AthleteDashboard() {
 
     async function load() {
       setLoading(true);
-      const [layoutResponse, profileResponse] = await Promise.all([
-        fetch("/api/dashboard/layout").catch(() => null),
-        fetch("/api/me/athlete").catch(() => null),
-      ]);
-
-      if (layoutResponse?.ok) {
-        const layoutPayload = await layoutResponse.json() as { layout: LayoutState };
-        if (active) setLayout(layoutPayload.layout);
-      }
+      try {
+        const layoutPayload = await apiFetch<{ layout: LayoutState }>("/api/dashboard/layout").catch(() => null);
+        if (layoutPayload?.layout && active) setLayout(layoutPayload.layout);
+      } catch {}
       if (active) setLayoutReady(true);
 
-      if (!profileResponse?.ok) {
+      let profile: AthleteProfile | null = null;
+      try {
+        profile = await apiFetch<AthleteProfile>("/api/me/athlete");
+      } catch {
         if (active) setLoading(false);
         return;
       }
 
-      const profile = await profileResponse.json() as AthleteProfile;
+      if (!profile) {
+        if (active) setLoading(false);
+        return;
+      }
       const query = `athleteId=${profile.id}`;
 
-      const [dailyLogsResponse, checkInsResponse, nutritionResponse, sessionsResponse, targetResponse] = await Promise.all([
-        fetch(`/api/daily-logs?${query}`).catch(() => null),
-        fetch(`/api/check-ins?${query}`).catch(() => null),
-        fetch(`/api/nutrition-logs?${query}`).catch(() => null),
-        fetch(`/api/session-logs?${query}`).catch(() => null),
-        fetch("/api/nutrition-targets").catch(() => null),
+      const [dailyLogs, checkIns, nutritionRaw, sessionLogs, target] = await Promise.all([
+        apiFetch<DailyLogRow[]>(`/api/daily-logs?${query}`).catch(() => []),
+        apiFetch<CheckInRow[]>(`/api/check-ins?${query}`).catch(() => []),
+        apiFetch<{ items?: NutritionLogRow[] } | NutritionLogRow[]>(`/api/nutrition-logs?${query}`).catch(() => []),
+        apiFetch<SessionLogRow[]>(`/api/session-logs?${query}`).catch(() => []),
+        apiFetch<NutritionTarget>("/api/nutrition-targets").catch(() => ({ athleteId: profile.id, mode: "FLEXIBLE" as const, source: "default", kcalTarget: 0, proteinG: 0, carbsG: 0, fatG: 0 })),
       ]);
 
       if (!active) return;
 
-      const nutritionJson = nutritionResponse?.ok
-        ? (await nutritionResponse.json() as { items?: NutritionLogRow[] } | NutritionLogRow[])
-        : null;
-      const nutritionLogs: NutritionLogRow[] = nutritionJson == null
-        ? []
-        : Array.isArray(nutritionJson)
-          ? nutritionJson
-          : (nutritionJson.items ?? []);
+      const nutritionLogs: NutritionLogRow[] = Array.isArray(nutritionRaw)
+        ? nutritionRaw
+        : (nutritionRaw?.items ?? []);
 
       setData({
         profile,
-        target: targetResponse?.ok ? await targetResponse.json() as NutritionTarget : { athleteId: profile.id, mode: "FLEXIBLE", source: "default", kcalTarget: 0, proteinG: 0, carbsG: 0, fatG: 0 },
-        dailyLogs: dailyLogsResponse?.ok ? await dailyLogsResponse.json() as DailyLogRow[] : [],
-        checkIns: checkInsResponse?.ok ? await checkInsResponse.json() as CheckInRow[] : [],
+        target,
+        dailyLogs,
+        checkIns,
         nutritionLogs,
-        sessionLogs: sessionsResponse?.ok ? await sessionsResponse.json() as SessionLogRow[] : [],
+        sessionLogs,
       });
       setLoading(false);
     }
@@ -267,11 +264,7 @@ export function AthleteDashboard() {
   useEffect(() => {
     if (!layoutReady) return;
     const timeout = window.setTimeout(() => {
-      void fetch("/api/dashboard/layout", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(layout),
-      });
+      void apiPost("/api/dashboard/layout", layout).catch(() => {});
     }, 250);
 
     return () => window.clearTimeout(timeout);
@@ -711,19 +704,19 @@ export function AthleteDashboard() {
 
   if (loading) {
     return (
-      <main className="mx-auto flex w-full max-w-[1480px] flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
+      <main className="mx-auto flex w-full max-w-370 flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
         <Skeleton className="h-44 w-full" />
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-36 w-full" />)}
         </div>
-        <Skeleton className="h-[420px] w-full" />
+        <Skeleton className="h-105 w-full" />
       </main>
     );
   }
 
   if (!data || !metrics) {
     return (
-      <main className="mx-auto flex w-full max-w-[1480px] flex-1 flex-col gap-8 px-6 py-8 md:px-10">
+      <main className="mx-auto flex w-full max-w-370 flex-1 flex-col gap-8 px-6 py-8 md:px-10">
         <SectionIntro
           eyebrow="Dashboard atleta"
           title="No se pudo cargar tu panel"
@@ -736,7 +729,7 @@ export function AthleteDashboard() {
   const currentTabMeta = TAB_META.find((tab) => tab.key === activeTab) ?? TAB_META[0];
 
   return (
-    <main className="mx-auto flex w-full max-w-[1480px] flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
+    <main className="mx-auto flex w-full max-w-370 flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
       <SectionIntro
         eyebrow="Dashboard atleta"
         title={`Centro de control · ${data.profile.fullName}`}

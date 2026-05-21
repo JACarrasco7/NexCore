@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiFetch } from '@/lib/store'
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -41,8 +42,7 @@ export function AthleteAside() {
   const pathname = usePathname();
 
   useEffect(() => {
-    fetch("/api/me/athlete")
-      .then((r) => r.ok ? r.json() : null)
+    apiFetch<AthleteProfile>('/api/me/athlete')
       .then((d) => { if (d) setProfile(d as AthleteProfile); })
       .catch(() => {});
   }, []);
