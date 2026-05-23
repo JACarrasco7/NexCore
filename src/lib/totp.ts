@@ -11,10 +11,10 @@ const authenticator: any =
 try {
   try {
     ;(authenticator as any).options = { window: 1 }
-  } catch (e) {
+  } catch (_e) {
     // some bundlers/export shapes provide a frozen object — skip in that case
   }
-} catch (e) {
+} catch (_e) {
   // ignore
 }
 
