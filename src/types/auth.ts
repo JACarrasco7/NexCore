@@ -19,12 +19,11 @@ export interface AppJWT extends JWT {
 
 /**
  * Extended Session user with application-specific fields
- * Note: phoneVerified and verificationMethod are optional during initial auth
- * and are populated by the jwt callback
+ * Note: Fields are optional during initial auth and populated by jwt callback
  */
 export interface AppUser extends User {
   id: string
-  role: 'ATHLETE' | 'COACH' | 'ADMIN'
+  role?: 'ATHLETE' | 'COACH' | 'ADMIN'
   totpEnabled?: boolean
   totpVerified?: boolean
   emailVerified?: boolean
