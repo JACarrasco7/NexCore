@@ -18,8 +18,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ te
     return unauthorized('No autorizado')
   }
 
-  const role = (session.user as { role?: string }).role
-
   // Verificar que es miembro del equipo con rol ADMIN
   const membership = await prisma.teamUserMembership.findFirst({
     where: {
@@ -42,9 +40,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ te
 
   const parsed = await parseJsonOrError(request)
   if (!parsed.ok) return parsed.error
-  const { name, slug } = parsed.data as any
+  const { name, slug } = parsed.data as { name?: unknown; slug?: unknown }
 
-  const updateData: any = {}
+  const updateData: Record<string, unknown> = {}
 
   if (name !== undefined) {
     if (typeof name !== 'string' || name.trim().length === 0) {
@@ -78,8 +76,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ te
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
     })
-  } catch (err: any) {
-    if (err?.code === 'P2002' && err?.meta?.target?.includes('slug')) {
+  } catch (err) {
+    const error = err as { code?: string; meta?: { target?: string[] } } | unknown
+    if (typeof error === 'object' && error !== null && 'code' in error && (error as any)?.code === 'P2002' && (error as any)?.meta?.target?.includes('slug')) {
       return NextResponse.json({ error: 'Este slug ya existe' }, { status: 409 })
     }
 
@@ -145,8 +144,8 @@ export async function DELETE(
     await prisma.team.delete({ where: { id: teamId } })
 
     return NextResponse.json({ success: true })
-  } catch (err: any) {
-    console.error('[teams-delete]', err)
+  } catch (_err) {
+    console.error('[teams-delete]', _err)
     return serverError('Error eliminando equipo')
   }
 }
