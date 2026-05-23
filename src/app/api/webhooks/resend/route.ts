@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { NotificationDeliveryStatus } from "@prisma/client";
 import { parseJsonOrError } from "@/lib/api/json-parser";
-import { badRequest, forbidden } from "@/lib/api/error-response";
+import { badRequest } from "@/lib/api/error-response";
+import type { ResendWebhookPayload } from "@/types/webhooks";
 
 function mapResendEvent(event: string | null): NotificationDeliveryStatus {
   switch (event?.toLowerCase()) {
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   const parsed = await parseJsonOrError(request)
   if (!parsed.ok) return parsed.error
-  const body = parsed.data as any
+  const body = parsed.data as ResendWebhookPayload
   const event = (body.event as string | null) ?? null;
   const messageId = body?.message?.id ?? body?.id ?? null;
 
