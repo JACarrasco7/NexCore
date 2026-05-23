@@ -75,7 +75,7 @@ export async function updatePlan(planId: string, payload: Partial<{ title: strin
 
     const updated = await prisma.plan.update({ where: { id: planId }, data: payload });
 
-    await auditMutation({ entity: 'Plan', entityId: planId, action: 'UPDATE', before: before as any, after: updated as any, userId });
+    await auditMutation({ entity: 'Plan', entityId: planId, action: 'UPDATE', before: before as Record<string, unknown>, after: updated as Record<string, unknown>, userId });
 
     return updated;
   } catch (err) {
@@ -91,7 +91,7 @@ export async function archivePlan(planId: string, userId?: string) {
 
     const archived = await prisma.plan.update({ where: { id: planId }, data: { deletedAt: new Date() } });
 
-    await auditMutation({ entity: 'Plan', entityId: planId, action: 'DELETE', before: before as any, userId });
+    await auditMutation({ entity: 'Plan', entityId: planId, action: 'DELETE', before: before as Record<string, unknown>, userId });
 
     return archived;
   } catch (err) {
@@ -145,7 +145,7 @@ export async function duplicatePlan(planId: string, targetAthleteId?: string, us
       include: { sessions: { include: { exercises: true } } },
     });
 
-    await auditMutation({ entity: 'Plan', entityId: created.id, action: 'CREATE', after: created as any, userId });
+    await auditMutation({ entity: 'Plan', entityId: created.id, action: 'CREATE', after: created as Record<string, unknown>, userId });
 
     return created as unknown as TrainingPlan;
   } catch (err) {
