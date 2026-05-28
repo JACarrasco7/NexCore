@@ -18,7 +18,7 @@ Guía paso a paso para crear un cluster en TiDB Cloud, conectar con Prisma y des
 1. Entra a https://tidbcloud.com y crea una cuenta (puedes usar GitHub).
 2. Crea un **Project** y dentro de él selecciona **Create Cluster**.
    - Elige **Serverless** (tier gratuito) o el plan que prefieras.
-   - Selecciona proveedor de nube y región (ej. `us-east-1`) y pon nombre `apexcoach`.
+   - Selecciona proveedor de nube y región (ej. `us-east-1`) y pon nombre `nexcore`.
 3. Espera a que el cluster esté `Running` (tarda unos minutos).
 4. En la página del cluster → **Connect** → copia la **connection string** para MySQL.
    - Ejemplo de `DATABASE_URL` (prisma compatible):
