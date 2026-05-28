@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { verifyEmailSchema } from '@/lib/validators'
 
 // GET /api/auth/verify-email?token=...&email=...
 // POST /api/auth/verify-email { token, email }
@@ -55,11 +56,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { token, email } = await req.json()
+    const body = await req.json()
 
-    if (!token || !email) {
-      return NextResponse.json({ error: 'Token o email faltante' }, { status: 400 })
+    const parsed = verifyEmailSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
+
+    const { token, email } = parsed.data
 
     const record = await prisma.verificationToken.findFirst({
       where: { token, identifier: email },

@@ -4,7 +4,14 @@ import { auth } from '@/auth'
 import crypto from 'crypto'
 import { sendEmail } from '@/lib/email'
 import { parseJsonOrError } from '@/lib/api/json-parser'
-import { unauthorized, forbidden, badRequest, notFound, serverError } from '@/lib/api/error-response'
+import {
+  unauthorized,
+  forbidden,
+  badRequest,
+  notFound,
+  serverError,
+} from '@/lib/api/error-response'
+import { teamCoachInviteSchema } from '@/lib/validators'
 
 export const dynamic = 'force-dynamic'
 
@@ -147,7 +154,13 @@ export async function POST(request: Request) {
 
   const parsed = await parseJsonOrError(request)
   if (!parsed.ok) return parsed.error
-  const { teamId, invitedEmail, inviteRole = 'MEMBER' } = parsed.data as any
+
+  const validated = teamCoachInviteSchema.safeParse(parsed.data)
+  if (!validated.success) {
+    return badRequest(validated.error.issues[0].message)
+  }
+
+  const { teamId, invitedEmail, inviteRole } = validated.data
 
   if (!teamId || !invitedEmail) {
     return NextResponse.json({ error: 'teamId y invitedEmail requeridos' }, { status: 400 })

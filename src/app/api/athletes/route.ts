@@ -7,6 +7,7 @@ import { parseJsonOrError } from '@/lib/api/json-parser'
 import { safeJsonParse } from '@/lib/json-utils'
 import { checkRateLimit, getClientIp, getRateLimitKey } from '@/lib/rate-limit'
 import { paginationSchema, buildPaginationResponse } from '@/lib/api'
+import { athleteCreateSchema } from '@/lib/validators'
 
 export const dynamic = 'force-dynamic'
 
@@ -146,10 +147,12 @@ export async function POST(request: Request) {
 
     const result = await parseJsonOrError(request)
     if (!result.ok) return result.error
-    const body = result.data as any // Already validated by parseJsonOrError
-    if (!body?.fullName) {
-      return NextResponse.json({ error: 'fullName es requerido' }, { status: 400 })
+
+    const validated = athleteCreateSchema.safeParse(result.data)
+    if (!validated.success) {
+      return NextResponse.json({ error: validated.error.issues[0].message }, { status: 400 })
     }
+    const body = validated.data
 
     const sessionRole = (session.user as { role?: string }).role
     if (sessionRole !== 'COACH' && sessionRole !== 'ADMIN') {
@@ -247,7 +250,9 @@ export async function POST(request: Request) {
           phaseLabel: body.phaseLabel ?? 'Semana 1',
           measurementCadence: cadenceEnum(body.measurementCadence),
           measurementEveryDays:
-            body.measurementCadence === 'custom-days' ? Number(body.measurementEveryDays ?? 7) : null,
+            body.measurementCadence === 'custom-days'
+              ? Number(body.measurementEveryDays ?? 7)
+              : null,
           reviewCadence: reviewCadenceEnum(body.reviewCadence),
           reviewEveryDays:
             body.reviewCadence === 'custom-days' ? Number(body.reviewEveryDays ?? 7) : null,
@@ -284,9 +289,6 @@ export async function POST(request: Request) {
     )
   } catch (error) {
     console.error('POST /api/athletes failed:', error)
-    return NextResponse.json(
-      { error: 'Error al crear atleta' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Error al crear atleta' }, { status: 500 })
   }
 }

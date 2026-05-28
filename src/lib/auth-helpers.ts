@@ -26,10 +26,7 @@ export async function requireRole(allowedRoles: UserRole[]): Promise<{
   if (!userRole || !allowedRoles.includes(userRole)) {
     return {
       user: null,
-      response: NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403 }
-      ),
+      response: NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 }),
     }
   }
 

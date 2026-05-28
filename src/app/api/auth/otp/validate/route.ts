@@ -4,18 +4,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { validateOtp } from '@/lib/otp'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { prisma } from '@/lib/prisma'
 import { OtpType } from '@prisma/client'
 import { parseJsonOrError } from '@/lib/api/json-parser'
-
-const validateSchema = z.object({
-  email: z.string().email(),
-  code: z.string().regex(/^\d{6}$/, 'Código debe ser 6 dígitos'),
-  type: z.enum(['LOGIN', 'SIGNATURE', 'RESET']).default('LOGIN'),
-})
+import { otpValidateSchema } from '@/lib/validators'
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,8 +33,8 @@ export async function POST(request: NextRequest) {
 
     const parseResult = await parseJsonOrError(request)
     if (!parseResult.ok) return parseResult.error
-    const body = parseResult.data as any // Already validated by parseJsonOrError
-    const parsed = validateSchema.safeParse(body)
+
+    const parsed = otpValidateSchema.safeParse(parseResult.data)
 
     if (!parsed.success) {
       return NextResponse.json(

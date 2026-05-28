@@ -1,0 +1,22 @@
+{
+  "name": "llm-proxy",
+  "version": "1.0.0",
+  "description": "Proxy de failover automático entre múltiples APIs de LLM gratuitas",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "llm",
+    "proxy",
+    "failover",
+    "openai-compatible"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.16.1",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  }
+}

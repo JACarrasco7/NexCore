@@ -9,7 +9,6 @@ import { UserMenu } from '@/components/user-menu'
 import { FloatingChat } from '@/components/floating-chat'
 import { NotificationBell } from '@/components/notification-bell'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { apiFetch } from '@/lib/store'
 
 type AppShellProps = {
   children: ReactNode
@@ -43,7 +42,6 @@ const COACH_NAV_GROUPS: NavGroup[] = [
     label: 'Nutrición',
     icon: '🥗',
     routes: [
-      { href: '/coach/nutrition/new', label: 'Crear plan nutricional', icon: '✍️' },
       { href: '/coach/nutrition', label: 'Planes de nutrición', icon: '🥗' },
       { href: '/coach/import-lab/nutrition', label: 'Importar nutrición', icon: '📥' },
     ],
@@ -126,8 +124,9 @@ export function AppShell({ children }: AppShellProps) {
       pathname.startsWith('/register')
     )
       return
-    apiFetch('/api/me/profile-status')
-      .then((d: any) => {
+    fetch('/api/me/profile-status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { hasProfile: boolean; role: string } | null) => {
         if (d && !d.hasProfile) router.push('/onboarding')
       })
       .catch(() => {})
@@ -138,9 +137,10 @@ export function AppShell({ children }: AppShellProps) {
     if (!session?.user) return
     let active = true
     async function refresh() {
-      const d = await apiFetch('/api/messages/unread-count').catch(() => null)
-      if (d && active) {
-        setUnread((d as any).count ?? 0)
+      const r = await fetch('/api/messages/unread-count').catch(() => null)
+      if (r?.ok && active) {
+        const d = (await r.json()) as { count: number }
+        setUnread(d.count)
       }
     }
     refresh()
@@ -164,10 +164,8 @@ export function AppShell({ children }: AppShellProps) {
 
   // Cerrar menú al navegar
   useEffect(() => {
-    if (menuOpen) {
-      setMenuOpen(false)
-    }
-  }, [pathname, menuOpen])
+    setMenuOpen(false)
+  }, [pathname])
 
   function isActive(href: string): boolean {
     return pathname === href || (href !== '/' && pathname.startsWith(href) && href.length > 1)
@@ -361,7 +359,7 @@ export function AppShell({ children }: AppShellProps) {
         className={`border-line mt-auto border-t ${pathname.startsWith('/coach') || pathname.startsWith('/athlete') ? '' : ''}`}
       >
         <div
-          className={`text-foreground/45 mx-auto flex w-full max-w-370 items-center justify-between gap-2 px-6 text-xs md:px-10 lg:px-12 ${pathname.startsWith('/coach') || pathname.startsWith('/athlete') ? 'py-2' : 'flex-col py-5 lg:flex-row'}`}
+          className={`text-foreground/45 mx-auto flex w-full max-w-[1480px] items-center justify-between gap-2 px-6 text-xs md:px-10 lg:px-12 ${pathname.startsWith('/coach') || pathname.startsWith('/athlete') ? 'py-2' : 'flex-col py-5 lg:flex-row'}`}
         >
           <div className="flex items-center gap-2">
             <span className="from-accent to-accent-strong flex h-5 w-5 items-center justify-center rounded bg-linear-to-br text-[9px] font-bold text-white">

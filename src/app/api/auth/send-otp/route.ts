@@ -5,8 +5,14 @@ import twilio from 'twilio'
 import { parseJsonOrError } from '@/lib/api/json-parser'
 import { badRequest, unauthorized, serverError, tooManyRequests } from '@/lib/api/error-response'
 import { checkRateLimit, getClientIp, getRateLimitKey } from '@/lib/rate-limit'
+import { z } from 'zod'
 
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+
+const sendOtpSchema = z.object({
+  phone: z.string().min(1, 'phone es requerido'),
+  type: z.enum(['LOGIN', 'SIGNATURE', 'RESET', 'VERIFICATION']).optional().default('VERIFICATION'),
+})
 
 export const dynamic = 'force-dynamic'
 
@@ -29,17 +35,13 @@ export async function POST(request: Request) {
 
   const parsed = await parseJsonOrError(request)
   if (!parsed.ok) return parsed.error
-  const body = parsed.data as any
-  const { phone, type = 'VERIFICATION' } = body
 
-  if (!phone) {
-    return badRequest('phone es requerido')
+  const validated = sendOtpSchema.safeParse(parsed.data)
+  if (!validated.success) {
+    return badRequest(validated.error.issues[0].message)
   }
 
-  const validTypes = ['LOGIN', 'SIGNATURE', 'RESET', 'VERIFICATION']
-  if (!validTypes.includes(type)) {
-    return badRequest('type inválido')
-  }
+  const { phone, type } = validated.data
 
   // Generar OTP
   const code = generateOtp()
@@ -50,7 +52,7 @@ export async function POST(request: Request) {
     data: {
       userId: session.user.id,
       code,
-      type: type as any,
+      type,
       expiresAt,
       metadata: { phone }, // JSON para guardar el phone usado
     },

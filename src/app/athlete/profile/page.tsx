@@ -177,25 +177,22 @@ export default function AthletProfilePage() {
       <div className="space-y-8">
         {/* 🏋️ EJERCICIOS FAVORITOS */}
         <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-foreground flex items-center gap-2 text-lg font-semibold">
               💪 Ejercicios Favoritos
             </h2>
             <button
               onClick={() => setShowExerciseSearch(!showExerciseSearch)}
-              className="bg-accent/10 hover:bg-accent/20 text-accent rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition"
+              className="bg-accent/10 hover:bg-accent/20 text-accent flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="h-4 w-4" />
               Añadir
             </button>
           </div>
 
           {showExerciseSearch && (
-            <div className="mb-4 p-4 border border-accent/30 rounded-lg bg-accent/5">
-              <ExerciseSearch
-                onSelect={handleAddExercise}
-                showFavorites={false}
-              />
+            <div className="border-accent/30 bg-accent/5 mb-4 rounded-lg border p-4">
+              <ExerciseSearch onSelect={handleAddExercise} showFavorites={false} />
             </div>
           )}
 
@@ -203,25 +200,21 @@ export default function AthletProfilePage() {
             <div className="text-foreground/50 text-sm">Cargando...</div>
           ) : favExercises.length === 0 ? (
             <div className="border-line bg-surface rounded-lg border p-6 text-center">
-              <div className="text-foreground/50 text-sm">
-                Aún no tienes ejercicios favoritos
-              </div>
+              <div className="text-foreground/50 text-sm">Aún no tienes ejercicios favoritos</div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {favExercises.map((ex) => (
                 <div
                   key={ex.id}
                   className="border-line bg-surface flex items-center justify-between rounded-lg border p-3"
                 >
-                  <span className="text-foreground font-medium text-sm">
-                    {ex.exerciseName}
-                  </span>
+                  <span className="text-foreground text-sm font-medium">{ex.exerciseName}</span>
                   <button
                     onClick={() => handleRemoveExercise(ex.id, ex.exerciseName)}
-                    className="text-foreground/50 hover:text-red-400 transition"
+                    className="text-foreground/50 transition hover:text-red-400"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               ))}
@@ -231,25 +224,22 @@ export default function AthletProfilePage() {
 
         {/* 🥗 ALIMENTOS FAVORITOS */}
         <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-foreground flex items-center gap-2 text-lg font-semibold">
               🥗 Alimentos Favoritos
             </h2>
             <button
               onClick={() => setShowFoodSearch(!showFoodSearch)}
-              className="bg-accent/10 hover:bg-accent/20 text-accent rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition"
+              className="bg-accent/10 hover:bg-accent/20 text-accent flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="h-4 w-4" />
               Añadir
             </button>
           </div>
 
           {showFoodSearch && (
-            <div className="mb-4 p-4 border border-accent/30 rounded-lg bg-accent/5">
-              <FoodSearch
-                onSelect={handleAddFood}
-                showFavorites={false}
-              />
+            <div className="border-accent/30 bg-accent/5 mb-4 rounded-lg border p-4">
+              <FoodSearch onSelect={handleAddFood} showFavorites={false} />
             </div>
           )}
 
@@ -257,33 +247,27 @@ export default function AthletProfilePage() {
             <div className="text-foreground/50 text-sm">Cargando...</div>
           ) : favFoods.length === 0 ? (
             <div className="border-line bg-surface rounded-lg border p-6 text-center">
-              <div className="text-foreground/50 text-sm">
-                Aún no tienes alimentos favoritos
-              </div>
+              <div className="text-foreground/50 text-sm">Aún no tienes alimentos favoritos</div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {favFoods.map((food) => (
                 <div
                   key={food.id}
                   className="border-line bg-surface flex items-center justify-between rounded-lg border p-3"
                 >
                   <div className="flex-1">
-                    <div className="text-foreground font-medium text-sm">
-                      {food.foodName}
-                    </div>
+                    <div className="text-foreground text-sm font-medium">{food.foodName}</div>
                     <div className="text-foreground/50 text-xs">
                       {food.kcal && `${food.kcal} kcal`}
                       {food.proteinG && ` • ${food.proteinG}g prot`}
                     </div>
                   </div>
                   <button
-                    onClick={() =>
-                      handleRemoveFood(food.id, food.foodName, food.source)
-                    }
-                    className="text-foreground/50 hover:text-red-400 transition ml-2"
+                    onClick={() => handleRemoveFood(food.id, food.foodName, food.source)}
+                    className="text-foreground/50 ml-2 transition hover:text-red-400"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               ))}
@@ -293,13 +277,13 @@ export default function AthletProfilePage() {
 
         {/* 📝 Nota: Medidas y Fotos de Gym */}
         <section className="border-line bg-surface/50 rounded-lg border p-4">
-          <p className="text-sm text-foreground/60">
+          <p className="text-foreground/60 text-sm">
             <strong>📊 Medidas corporales:</strong> Disponibles en Check-in semanal y Daily Logs
           </p>
-          <p className="text-sm text-foreground/60 mt-2">
+          <p className="text-foreground/60 mt-2 text-sm">
             <strong>📸 Fotos de progreso:</strong> Carga en la pestaña "Fotos de Progreso"
           </p>
-          <p className="text-sm text-foreground/60 mt-2">
+          <p className="text-foreground/60 mt-2 text-sm">
             <strong>🏋️ Máquinas del gym:</strong> Configura en tu contexto de atleta
           </p>
         </section>

@@ -3,6 +3,13 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
 import { parseJsonOrError } from '@/lib/api/json-parser'
 import { unauthorized, badRequest } from '@/lib/api/error-response'
+import { z } from 'zod'
+
+const verifyOtpSchema = z.object({
+  code: z.string().length(6, 'Código debe tener 6 dígitos'),
+  type: z.enum(['LOGIN', 'SIGNATURE', 'RESET', 'VERIFICATION']).optional().default('VERIFICATION'),
+  phone: z.string().optional(),
+})
 
 export const dynamic = 'force-dynamic'
 
@@ -15,19 +22,20 @@ export async function POST(request: Request) {
 
   const parsed = await parseJsonOrError(request)
   if (!parsed.ok) return parsed.error
-  const body = parsed.data as any
-  const { code, type = 'VERIFICATION', phone } = body
 
-  if (!code || !type) {
-    return badRequest('code y type son requeridos')
+  const validated = verifyOtpSchema.safeParse(parsed.data)
+  if (!validated.success) {
+    return badRequest(validated.error.issues[0].message)
   }
+
+  const { code, type, phone } = validated.data
 
   // Buscar token activo
   const otp = await prisma.otpToken.findFirst({
     where: {
       userId: session.user.id,
       code,
-      type: type as any,
+      type,
       expiresAt: { gt: new Date() }, // No expirado
       usedAt: null, // No utilizado
     },

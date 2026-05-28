@@ -62,7 +62,7 @@ export default async function CoachPage() {
       />
 
       {/* KPIs */}
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
         {coachStats.map((stat) => (
           <StatCard key={stat.label} stat={stat} />
         ))}

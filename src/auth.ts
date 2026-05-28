@@ -28,6 +28,7 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
             passwordHash: true,
             role: true,
             totpEnabled: true,
+            emailVerified: true,
           },
         })
 
@@ -79,7 +80,7 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
         const appToken = token as AppJWT
         appToken.role = ((user as any)?.role as 'ATHLETE' | 'COACH' | 'ADMIN') || 'ATHLETE'
         appToken.id = (user as any)?.id || ''
-        appToken.emailVerified = Boolean(((user as any)?.emailVerified as Date | null | undefined))
+        appToken.emailVerified = Boolean((user as any)?.emailVerified as Date | null | undefined)
         // expose if user has TOTP enabled; mark verified=false so client can require second step
         appToken.totpEnabled = (user as { totpEnabled?: boolean }).totpEnabled ?? false
         appToken.totpVerified = appToken.totpEnabled ? false : true
@@ -102,7 +103,8 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
               select: { phoneVerified: true, verificationMethod: true },
             })
             appToken.phoneVerified = athlete?.phoneVerified ?? false
-            appToken.verificationMethod = (athlete?.verificationMethod as 'EMAIL' | 'SMS' | 'BOTH' | undefined) ?? 'EMAIL'
+            appToken.verificationMethod =
+              (athlete?.verificationMethod as 'EMAIL' | 'SMS' | 'BOTH' | undefined) ?? 'EMAIL'
           }
         }
       } else if (token.iat) {
@@ -151,7 +153,8 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
                   select: { phoneVerified: true, verificationMethod: true },
                 })
                 appToken.phoneVerified = athlete?.phoneVerified ?? false
-                appToken.verificationMethod = (athlete?.verificationMethod as 'EMAIL' | 'SMS' | 'BOTH' | undefined) ?? 'EMAIL'
+                appToken.verificationMethod =
+                  (athlete?.verificationMethod as 'EMAIL' | 'SMS' | 'BOTH' | undefined) ?? 'EMAIL'
               }
             }
             appToken.totpCheckedAt = now
@@ -172,7 +175,8 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
         appSession.user.totpVerified = Boolean(appToken.totpVerified)
         appSession.user.emailVerified = Boolean(appToken.emailVerified)
         appSession.user.phoneVerified = Boolean(appToken.phoneVerified)
-        appSession.user.verificationMethod = (appToken.verificationMethod as 'EMAIL' | 'SMS' | 'BOTH' | undefined) ?? 'EMAIL'
+        appSession.user.verificationMethod =
+          (appToken.verificationMethod as 'EMAIL' | 'SMS' | 'BOTH' | undefined) ?? 'EMAIL'
       }
       return appSession
     },

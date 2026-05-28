@@ -3,6 +3,7 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { parseJsonOrError } from '@/lib/api/json-parser'
 import { unauthorized, badRequest, serverError, notFound } from '@/lib/api/error-response'
+import { coachUpdateSchema } from '@/lib/validators'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,8 +41,13 @@ export async function PATCH(request: Request) {
 
   const parsed = await parseJsonOrError(request)
   if (!parsed.ok) return parsed.error
-  const body = parsed.data as any
-  const { displayName, bio } = body
+
+  const validated = coachUpdateSchema.safeParse(parsed.data)
+  if (!validated.success) {
+    return badRequest(validated.error.issues[0].message)
+  }
+
+  const { displayName, bio } = validated.data
 
   if (!displayName || displayName.trim().length === 0) {
     return badRequest('displayName es requerido')

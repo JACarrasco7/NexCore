@@ -1,84 +1,112 @@
-"use client";
+'use client'
 
-import { useRouter } from "next/navigation";
-import { useEffect, useId, useMemo, useState } from "react";
-import { SectionIntro } from "@/components/section-intro";
-import { useAthletes, apiFetch, apiPost } from "@/lib/store";
-import { useCoachMe } from "@/lib/use-coach-me";
+import { useRouter } from 'next/navigation'
+import { useEffect, useId, useMemo, useState } from 'react'
+import { SectionIntro } from '@/components/section-intro'
+import { useAthletes } from '@/lib/store'
+import { useCoachMe } from '@/lib/use-coach-me'
 
-type Goal = string;
+type Goal = string
 
 type CatalogGoal = {
-  id: string | null;
-  code: string;
-  label: string;
-  description: string | null | undefined;
-  isVisible: boolean;
-  isDefault?: boolean;
-};
+  id: string | null
+  code: string
+  label: string
+  description: string | null | undefined
+  isVisible: boolean
+  isDefault?: boolean
+}
 
 type CatalogPhase = {
-  id: string;
-  code: string;
-  label: string;
-};
+  id: string
+  code: string
+  label: string
+}
 
 type FormData = {
-  fullName: string;
-  phone: string;
-  contactEmail: string;
-  primaryComment: string;
-  goal: Goal;
-  phaseLabel: string;
-  coachId: string;
-  teamId: string | null;
-  healthConnections: string[];
-};
+  fullName: string
+  phone: string
+  contactEmail: string
+  primaryComment: string
+  goal: Goal
+  phaseLabel: string
+  coachId: string
+  teamId: string | null
+  healthConnections: string[]
+}
 
 type TeamCoach = {
-  coachId: string;
-  displayName: string;
-  email: string;
-  phone: string | null;
-  role: string;
-};
+  coachId: string
+  displayName: string
+  email: string
+  phone: string | null
+  role: string
+}
 
 const FALLBACK_GOALS: CatalogGoal[] = [
-  { id: null, code: "VOLUMEN", label: "Volumen", description: "Construir masa muscular con superávit controlado.", isVisible: true, isDefault: true },
-  { id: null, code: "DEFINICION", label: "Definición", description: "Reducir grasa preservando músculo en déficit.", isVisible: true, isDefault: true },
-  { id: null, code: "MANTENIMIENTO", label: "Mantenimiento", description: "Mantener composición corporal actual.", isVisible: true, isDefault: true },
-  { id: null, code: "PEAK_WEEK", label: "Peak Week", description: "Puesta a punto previa a competición.", isVisible: true, isDefault: true },
-];
+  {
+    id: null,
+    code: 'VOLUMEN',
+    label: 'Volumen',
+    description: 'Construir masa muscular con superávit controlado.',
+    isVisible: true,
+    isDefault: true,
+  },
+  {
+    id: null,
+    code: 'DEFINICION',
+    label: 'Definición',
+    description: 'Reducir grasa preservando músculo en déficit.',
+    isVisible: true,
+    isDefault: true,
+  },
+  {
+    id: null,
+    code: 'MANTENIMIENTO',
+    label: 'Mantenimiento',
+    description: 'Mantener composición corporal actual.',
+    isVisible: true,
+    isDefault: true,
+  },
+  {
+    id: null,
+    code: 'PEAK_WEEK',
+    label: 'Peak Week',
+    description: 'Puesta a punto previa a competición.',
+    isVisible: true,
+    isDefault: true,
+  },
+]
 
-const STEPS = ["Datos personales y objetivo", "Contrato legal", "Confirmación"];
+const STEPS = ['Datos personales y objetivo', 'Contrato legal', 'Confirmación']
 
 const EMPTY_FORM: FormData = {
-  fullName: "",
-  phone: "",
-  contactEmail: "",
-  primaryComment: "",
-  goal: "VOLUMEN",
-  phaseLabel: "",
-  coachId: "",
+  fullName: '',
+  phone: '',
+  contactEmail: '',
+  primaryComment: '',
+  goal: 'VOLUMEN',
+  phaseLabel: '',
+  coachId: '',
   teamId: null,
   healthConnections: [],
-};
+}
 
 export default function OnboardingPage() {
-  const router = useRouter();
-  const { coach, loading: loadingCoach } = useCoachMe();
-  const { addAthlete } = useAthletes(coach?.id);
-  const formId = useId();
-  const [step, setStep] = useState(0);
-  const [submitted, setSubmitted] = useState(false);
-  const [form, setForm] = useState<FormData>(EMPTY_FORM);
-  const [teamCoaches, setTeamCoaches] = useState<TeamCoach[]>([]);
-  const [catalogGoals, setCatalogGoals] = useState<CatalogGoal[]>(FALLBACK_GOALS);
-  const [catalogPhases, setCatalogPhases] = useState<CatalogPhase[]>([]);
-  const [phaseMode, setPhaseMode] = useState<"catalog" | "custom">("catalog");
-  const [contractTemplate, setContractTemplate] = useState<string>("");
-  const [consentAccepted, setConsentAccepted] = useState(false);
-  const [consentSignature, setConsentSignature] = useState("");
+  const router = useRouter()
+  const { coach, loading: loadingCoach } = useCoachMe()
+  const { addAthlete } = useAthletes(coach?.id)
+  const formId = useId()
+  const [step, setStep] = useState(0)
+  const [submitted, setSubmitted] = useState(false)
+  const [form, setForm] = useState<FormData>(EMPTY_FORM)
+  const [teamCoaches, setTeamCoaches] = useState<TeamCoach[]>([])
+  const [catalogGoals, setCatalogGoals] = useState<CatalogGoal[]>(FALLBACK_GOALS)
+  const [catalogPhases, setCatalogPhases] = useState<CatalogPhase[]>([])
+  const [phaseMode, setPhaseMode] = useState<'catalog' | 'custom'>('catalog')
+  const [contractTemplate, setContractTemplate] = useState<string>('')
+  const [consentAccepted, setConsentAccepted] = useState(false)
+  const [consentSignature, setConsentSignature] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -86,25 +114,36 @@ export default function OnboardingPage() {
         // Primero intentar obtener coaches (caso coach y admin con teamId)
         let coachesData: { teamId: string | null; coaches: TeamCoach[] } | null = null
         try {
-          coachesData = await apiFetch<{ teamId: string | null; coaches: TeamCoach[] } | null>('/api/teams/coaches').catch(() => null)
+          const res = await fetch('/api/teams/coaches')
+          if (res.ok)
+            coachesData = (await res.json()) as { teamId: string | null; coaches: TeamCoach[] }
         } catch (_) {
           coachesData = null
         }
 
         // Si no hay coaches, intentar resolver por equipos disponibles (útil para ADMIN)
-        if (!coachesData || !Array.isArray(coachesData.coaches) || coachesData.coaches.length === 0) {
+        if (
+          !coachesData ||
+          !Array.isArray(coachesData.coaches) ||
+          coachesData.coaches.length === 0
+        ) {
           try {
-            const teamsRes = await apiFetch<Array<{ id: string }>>('/api/teams').catch(() => [])
-            if (Array.isArray(teamsRes) && teamsRes.length > 0) {
-              for (const t of teamsRes) {
-                try {
-                  const d = await apiFetch<{ teamId: string | null; coaches: TeamCoach[] } | null>(`/api/teams/coaches?teamId=${t.id}`).catch(() => null)
-                  if (d && Array.isArray((d as any).coaches) && (d as any).coaches.length > 0) {
-                    coachesData = d
-                    break
+            const teamsRes = await fetch('/api/teams')
+            if (teamsRes.ok) {
+              const teams = (await teamsRes.json()) as Array<{ id: string }>
+              if (Array.isArray(teams) && teams.length > 0) {
+                for (const t of teams) {
+                  try {
+                    const r = await fetch(`/api/teams/coaches?teamId=${t.id}`)
+                    if (!r.ok) continue
+                    const d = await r.json()
+                    if (d && Array.isArray(d.coaches) && d.coaches.length > 0) {
+                      coachesData = d
+                      break
+                    }
+                  } catch (_) {
+                    continue
                   }
-                } catch (_) {
-                  continue
                 }
               }
             }
@@ -120,24 +159,31 @@ export default function OnboardingPage() {
             teamId: coachesData.teamId ?? prev.teamId,
             coachId:
               prev.coachId ||
-              (coachesData.coaches.find((c) => c.coachId === coach?.id)?.coachId ?? coachesData.coaches[0]?.coachId ?? ''),
+              (coachesData.coaches.find((c) => c.coachId === coach?.id)?.coachId ??
+                coachesData.coaches[0]?.coachId ??
+                ''),
           }))
         }
 
         // Cargar catalog y contrato (independiente)
         try {
-          const [catalogData, contractData] = await Promise.all([
-            apiFetch<any>('/api/teams/catalog').catch(() => ({})),
-            apiFetch<any>('/api/teams/contract').catch(() => ({})),
+          const [catalogRes, contractRes] = await Promise.all([
+            fetch('/api/teams/catalog'),
+            fetch('/api/teams/contract'),
           ])
-          const visibleGoals = (catalogData?.goals ?? []).filter((g: any) => g.isVisible !== false)
-          if (visibleGoals.length > 0) setCatalogGoals(visibleGoals)
-          if ((catalogData?.phases ?? []).length > 0) {
-            setCatalogPhases(catalogData.phases)
-            setPhaseMode('catalog')
+          if (catalogRes.ok) {
+            const catalogData = await catalogRes.json()
+            const visibleGoals = (catalogData.goals ?? []).filter((g: any) => g.isVisible !== false)
+            if (visibleGoals.length > 0) setCatalogGoals(visibleGoals)
+            if ((catalogData.phases ?? []).length > 0) {
+              setCatalogPhases(catalogData.phases)
+              setPhaseMode('catalog')
+            }
           }
-
-          if (contractData?.template) setContractTemplate(contractData.template)
+          if (contractRes.ok) {
+            const contractData = await contractRes.json()
+            if (contractData?.template) setContractTemplate(contractData.template)
+          }
         } catch (_) {
           // ignore
         }
@@ -151,20 +197,20 @@ export default function OnboardingPage() {
 
   const selectedCoach = useMemo(
     () => teamCoaches.find((c) => c.coachId === form.coachId) ?? null,
-    [teamCoaches, form.coachId],
-  );
+    [teamCoaches, form.coachId]
+  )
 
   function update<K extends keyof FormData>(key: K, value: FormData[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: value }))
   }
 
   async function handleSubmit() {
-    const goalApiValue = form.goal.toLowerCase().replace("_", "-");
+    const goalApiValue = form.goal.toLowerCase().replace('_', '-')
     const created = await addAthlete({
       fullName: form.fullName,
-      goal: goalApiValue as "volumen" | "definicion" | "mantenimiento" | "peak-week",
-      phaseLabel: form.phaseLabel || "Semana 1",
-      coachName: selectedCoach?.displayName ?? coach?.displayName ?? "Coach",
+      goal: goalApiValue as 'volumen' | 'definicion' | 'mantenimiento' | 'peak-week',
+      phaseLabel: form.phaseLabel || 'Semana 1',
+      coachName: selectedCoach?.displayName ?? coach?.displayName ?? 'Coach',
       coachUserId: null,
       userId: null,
       phone: form.phone || null,
@@ -173,50 +219,55 @@ export default function OnboardingPage() {
       teamId: form.teamId,
       healthConnections: [],
       coachId: form.coachId || coach?.id,
-    });
+    })
 
     if (consentAccepted && created?.id) {
-      await apiPost(`/api/athletes/${created.id}/consent`, { signatureRef: consentSignature.trim() || null }).catch(() => void 0)
+      await fetch(`/api/athletes/${created.id}/consent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signatureRef: consentSignature.trim() || null }),
+      }).catch(() => void 0)
     }
 
-    setSubmitted(true);
+    setSubmitted(true)
   }
 
   if (submitted) {
     return (
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-8 px-6 py-20 text-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-accent text-4xl text-white">✓</div>
+        <div className="bg-accent flex h-20 w-20 items-center justify-center rounded-full text-4xl text-white">
+          ✓
+        </div>
         <div>
           <h1 className="text-3xl font-semibold">Alta completada</h1>
-          <p className="mt-3 text-foreground/70">
-            <strong>{form.fullName}</strong> dado de alta — objetivo:{" "}
-            <strong>{form.goal}</strong>.
+          <p className="text-foreground/70 mt-3">
+            <strong>{form.fullName}</strong> dado de alta — objetivo: <strong>{form.goal}</strong>.
           </p>
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => router.push("/coach/athletes")}
-            className="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent-strong"
+            onClick={() => router.push('/coach/athletes')}
+            className="bg-accent hover:bg-accent-strong rounded-full px-6 py-3 text-sm font-semibold text-white transition"
           >
             Ver atletas
           </button>
           <button
             onClick={() => {
-              setSubmitted(false);
-              setStep(0);
+              setSubmitted(false)
+              setStep(0)
               setForm({
                 ...EMPTY_FORM,
-                coachId: teamCoaches[0]?.coachId ?? "",
+                coachId: teamCoaches[0]?.coachId ?? '',
                 teamId: form.teamId,
-              });
+              })
             }}
-            className="rounded-full border border-line bg-surface px-6 py-3 text-sm font-semibold transition hover:bg-surface-strong"
+            className="border-line bg-surface hover:bg-surface-strong rounded-full border px-6 py-3 text-sm font-semibold transition"
           >
             Dar de alta otro
           </button>
         </div>
       </main>
-    );
+    )
   }
 
   return (
@@ -224,7 +275,13 @@ export default function OnboardingPage() {
       <SectionIntro
         eyebrow="Onboarding del atleta"
         title="Alta operativa sin formularios dispersos"
-        description={loadingCoach ? "Cargando perfil coach..." : coach ? `Equipo de ${coach.displayName}` : "Rellena los datos una sola vez. Sin PDFs, sin WhatsApp, sin carpetas."}
+        description={
+          loadingCoach
+            ? 'Cargando perfil coach...'
+            : coach
+              ? `Equipo de ${coach.displayName}`
+              : 'Rellena los datos una sola vez. Sin PDFs, sin WhatsApp, sin carpetas.'
+        }
       />
 
       {/* Progress */}
@@ -234,16 +291,16 @@ export default function OnboardingPage() {
             <div
               className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition ${
                 i < step
-                  ? "bg-accent text-white"
+                  ? 'bg-accent text-white'
                   : i === step
-                    ? "border-2 border-accent text-accent"
-                    : "border border-line text-foreground/40"
+                    ? 'border-accent text-accent border-2'
+                    : 'border-line text-foreground/40 border'
               }`}
             >
-              {i < step ? "✓" : i + 1}
+              {i < step ? '✓' : i + 1}
             </div>
             <span
-              className={`hidden text-xs md:block ${i === step ? "font-medium text-accent" : "text-foreground/50"}`}
+              className={`hidden text-xs md:block ${i === step ? 'text-accent font-medium' : 'text-foreground/50'}`}
             >
               {label}
             </span>
@@ -251,68 +308,71 @@ export default function OnboardingPage() {
         ))}
       </div>
 
-      <div className="rounded-4xl border border-line bg-surface p-6 md:p-8">
+      <div className="border-line bg-surface rounded-4xl border p-6 md:p-8">
         {step === 0 && (
           <div className="space-y-5">
             <h2 className="text-xl font-semibold">Datos personales y objetivo</h2>
             <div className="space-y-1">
-              <label htmlFor={`${formId}-name`} className="text-sm font-medium text-foreground/70">
+              <label htmlFor={`${formId}-name`} className="text-foreground/70 text-sm font-medium">
                 Nombre completo
               </label>
               <input
                 id={`${formId}-name`}
                 type="text"
                 value={form.fullName}
-                onChange={(e) => update("fullName", e.target.value)}
+                onChange={(e) => update('fullName', e.target.value)}
                 placeholder="Ej: Carlos Ruiz"
-                className="w-full rounded-2xl border border-line bg-surface-strong px-4 py-3 text-sm outline-none transition focus:border-accent"
+                className="border-line bg-surface-strong focus:border-accent w-full rounded-2xl border px-4 py-3 text-sm transition outline-none"
               />
             </div>
 
             <div className="space-y-1">
-              <label htmlFor={`${formId}-email`} className="text-sm font-medium text-foreground/70">
+              <label htmlFor={`${formId}-email`} className="text-foreground/70 text-sm font-medium">
                 Email del atleta
               </label>
               <input
                 id={`${formId}-email`}
                 type="email"
                 value={form.contactEmail}
-                onChange={(e) => update("contactEmail", e.target.value)}
+                onChange={(e) => update('contactEmail', e.target.value)}
                 placeholder="Ej: atleta@email.com"
-                className="w-full rounded-2xl border border-line bg-surface-strong px-4 py-3 text-sm outline-none transition focus:border-accent"
+                className="border-line bg-surface-strong focus:border-accent w-full rounded-2xl border px-4 py-3 text-sm transition outline-none"
               />
             </div>
 
             <div className="space-y-1">
-              <label htmlFor={`${formId}-phone`} className="text-sm font-medium text-foreground/70">
+              <label htmlFor={`${formId}-phone`} className="text-foreground/70 text-sm font-medium">
                 Telefono del atleta
               </label>
               <input
                 id={`${formId}-phone`}
                 type="tel"
                 value={form.phone}
-                onChange={(e) => update("phone", e.target.value)}
+                onChange={(e) => update('phone', e.target.value)}
                 placeholder="Ej: +34 600 000 000"
-                className="w-full rounded-2xl border border-line bg-surface-strong px-4 py-3 text-sm outline-none transition focus:border-accent"
+                className="border-line bg-surface-strong focus:border-accent w-full rounded-2xl border px-4 py-3 text-sm transition outline-none"
               />
             </div>
 
             <div className="space-y-1">
-              <label htmlFor={`${formId}-coach-select`} className="text-sm font-medium text-foreground/70">
+              <label
+                htmlFor={`${formId}-coach-select`}
+                className="text-foreground/70 text-sm font-medium"
+              >
                 Coach del equipo
               </label>
               <select
                 id={`${formId}-coach-select`}
                 value={form.coachId}
-                onChange={(e) => update("coachId", e.target.value)}
-                className="w-full rounded-2xl border border-line bg-surface-strong px-4 py-3 text-sm outline-none transition focus:border-accent"
+                onChange={(e) => update('coachId', e.target.value)}
+                className="border-line bg-surface-strong focus:border-accent w-full rounded-2xl border px-4 py-3 text-sm transition outline-none"
               >
                 {teamCoaches.length === 0 ? (
                   <option value="">Sin coaches en el equipo</option>
                 ) : (
                   teamCoaches.map((c) => (
                     <option key={c.coachId} value={c.coachId}>
-                      {c.displayName} · {c.email} · {c.phone || "sin telefono"}
+                      {c.displayName} · {c.email} · {c.phone || 'sin telefono'}
                     </option>
                   ))
                 )}
@@ -324,47 +384,54 @@ export default function OnboardingPage() {
                 <button
                   key={g.code}
                   type="button"
-                  onClick={() => update("goal", g.code)}
+                  onClick={() => update('goal', g.code)}
                   className={`rounded-3xl border p-4 text-left transition ${
                     form.goal === g.code
-                      ? "border-accent bg-accent-soft"
-                      : "border-line bg-surface-strong hover:border-accent/50"
+                      ? 'border-accent bg-accent-soft'
+                      : 'border-line bg-surface-strong hover:border-accent/50'
                   }`}
                 >
                   <p className="text-sm font-semibold">{g.label}</p>
-                  {g.description ? <p className="mt-1 text-xs text-foreground/60">{g.description}</p> : null}
+                  {g.description ? (
+                    <p className="text-foreground/60 mt-1 text-xs">{g.description}</p>
+                  ) : null}
                 </button>
               ))}
             </div>
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <label htmlFor={`${formId}-phase`} className="text-sm font-medium text-foreground/70">
+                <label
+                  htmlFor={`${formId}-phase`}
+                  className="text-foreground/70 text-sm font-medium"
+                >
                   Fase / etiqueta de semana
                 </label>
                 {catalogPhases.length > 0 && (
                   <button
                     type="button"
                     onClick={() => {
-                      setPhaseMode((m) => m === "catalog" ? "custom" : "catalog");
-                      update("phaseLabel", "");
+                      setPhaseMode((m) => (m === 'catalog' ? 'custom' : 'catalog'))
+                      update('phaseLabel', '')
                     }}
-                    className="text-xs text-accent hover:underline"
+                    className="text-accent text-xs hover:underline"
                   >
-                    {phaseMode === "catalog" ? "Escribir personalizada" : "Usar catálogo"}
+                    {phaseMode === 'catalog' ? 'Escribir personalizada' : 'Usar catálogo'}
                   </button>
                 )}
               </div>
-              {catalogPhases.length > 0 && phaseMode === "catalog" ? (
+              {catalogPhases.length > 0 && phaseMode === 'catalog' ? (
                 <select
                   id={`${formId}-phase`}
                   value={form.phaseLabel}
-                  onChange={(e) => update("phaseLabel", e.target.value)}
-                  className="w-full rounded-2xl border border-line bg-surface-strong px-4 py-3 text-sm outline-none transition focus:border-accent"
+                  onChange={(e) => update('phaseLabel', e.target.value)}
+                  className="border-line bg-surface-strong focus:border-accent w-full rounded-2xl border px-4 py-3 text-sm transition outline-none"
                 >
                   <option value="">Seleccionar fase del equipo…</option>
                   {catalogPhases.map((p) => (
-                    <option key={p.id} value={p.label}>{p.label}</option>
+                    <option key={p.id} value={p.label}>
+                      {p.label}
+                    </option>
                   ))}
                 </select>
               ) : (
@@ -372,24 +439,27 @@ export default function OnboardingPage() {
                   id={`${formId}-phase`}
                   type="text"
                   value={form.phaseLabel}
-                  onChange={(e) => update("phaseLabel", e.target.value)}
+                  onChange={(e) => update('phaseLabel', e.target.value)}
                   placeholder="Ej: Semana 3 Bloque A"
-                  className="w-full rounded-2xl border border-line bg-surface-strong px-4 py-3 text-sm outline-none transition focus:border-accent"
+                  className="border-line bg-surface-strong focus:border-accent w-full rounded-2xl border px-4 py-3 text-sm transition outline-none"
                 />
               )}
             </div>
 
             <div className="space-y-1">
-              <label htmlFor={`${formId}-comment`} className="text-sm font-medium text-foreground/70">
+              <label
+                htmlFor={`${formId}-comment`}
+                className="text-foreground/70 text-sm font-medium"
+              >
                 Comentario primario
               </label>
               <textarea
                 id={`${formId}-comment`}
                 value={form.primaryComment}
-                onChange={(e) => update("primaryComment", e.target.value)}
+                onChange={(e) => update('primaryComment', e.target.value)}
                 placeholder="Contexto inicial del atleta, observaciones del coach, etc."
                 rows={3}
-                className="w-full resize-none rounded-2xl border border-line bg-surface-strong px-4 py-3 text-sm outline-none transition focus:border-accent"
+                className="border-line bg-surface-strong focus:border-accent w-full resize-none rounded-2xl border px-4 py-3 text-sm transition outline-none"
               />
             </div>
           </div>
@@ -398,19 +468,19 @@ export default function OnboardingPage() {
         {step === 1 && (
           <div className="space-y-5">
             <h2 className="text-xl font-semibold">Contrato legal</h2>
-            <p className="text-sm text-foreground/60">
+            <p className="text-foreground/60 text-sm">
               El atleta debe leer y aceptar los términos antes de finalizar el alta.
             </p>
-            <div className="max-h-72 overflow-y-auto rounded-2xl border border-line bg-surface-strong p-4 text-sm text-foreground/80 whitespace-pre-wrap">
-              {contractTemplate || "Cargando contrato…"}
+            <div className="border-line bg-surface-strong text-foreground/80 max-h-72 overflow-y-auto rounded-2xl border p-4 text-sm whitespace-pre-wrap">
+              {contractTemplate || 'Cargando contrato…'}
             </div>
-            <div className="space-y-3 rounded-2xl border border-line bg-surface-strong p-4">
+            <div className="border-line bg-surface-strong space-y-3 rounded-2xl border p-4">
               <label className="flex cursor-pointer items-start gap-3">
                 <input
                   type="checkbox"
                   checked={consentAccepted}
                   onChange={(e) => setConsentAccepted(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-accent"
+                  className="accent-accent mt-0.5 h-4 w-4"
                 />
                 <span className="text-sm">
                   He leído y acepto los términos del contrato de coaching.
@@ -418,7 +488,7 @@ export default function OnboardingPage() {
               </label>
               {consentAccepted && (
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-foreground/60">
+                  <label className="text-foreground/60 text-xs font-medium">
                     Firma (nombre completo del atleta)
                   </label>
                   <input
@@ -426,7 +496,7 @@ export default function OnboardingPage() {
                     value={consentSignature}
                     onChange={(e) => setConsentSignature(e.target.value)}
                     placeholder="Escribe tu nombre completo"
-                    className="w-full rounded-xl border border-line bg-surface px-4 py-2 text-sm outline-none transition focus:border-accent"
+                    className="border-line bg-surface focus:border-accent w-full rounded-xl border px-4 py-2 text-sm transition outline-none"
                   />
                 </div>
               )}
@@ -440,18 +510,28 @@ export default function OnboardingPage() {
             <ul className="space-y-3 text-sm">
               {(
                 [
-                  ["Nombre", form.fullName],
-                  ["Email atleta", form.contactEmail || "No indicado"],
-                  ["Telefono atleta", form.phone || "No indicado"],
-                  ["Coach", selectedCoach ? `${selectedCoach.displayName} (${selectedCoach.email})` : "No seleccionado"],
-                  ["Objetivo", form.goal],
-                  ["Fase", form.phaseLabel || "Semana 1"],
-                  ["Contrato aceptado", consentAccepted ? `Sí — "${consentSignature || "Sin firma tipada"}"` : "No aceptado"],
+                  ['Nombre', form.fullName],
+                  ['Email atleta', form.contactEmail || 'No indicado'],
+                  ['Telefono atleta', form.phone || 'No indicado'],
+                  [
+                    'Coach',
+                    selectedCoach
+                      ? `${selectedCoach.displayName} (${selectedCoach.email})`
+                      : 'No seleccionado',
+                  ],
+                  ['Objetivo', form.goal],
+                  ['Fase', form.phaseLabel || 'Semana 1'],
+                  [
+                    'Contrato aceptado',
+                    consentAccepted
+                      ? `Sí — "${consentSignature || 'Sin firma tipada'}"`
+                      : 'No aceptado',
+                  ],
                 ] as [string, string][]
               ).map(([label, value]) => (
                 <li
                   key={label}
-                  className="flex items-start justify-between gap-4 rounded-2xl border border-line bg-surface-strong px-4 py-3"
+                  className="border-line bg-surface-strong flex items-start justify-between gap-4 rounded-2xl border px-4 py-3"
                 >
                   <span className="text-foreground/60">{label}</span>
                   <span className="text-right font-medium">{value}</span>
@@ -467,7 +547,7 @@ export default function OnboardingPage() {
           type="button"
           onClick={() => setStep((s) => s - 1)}
           disabled={step === 0}
-          className="rounded-full border border-line bg-surface px-6 py-3 text-sm font-semibold transition hover:bg-surface-strong disabled:pointer-events-none disabled:opacity-40"
+          className="border-line bg-surface hover:bg-surface-strong rounded-full border px-6 py-3 text-sm font-semibold transition disabled:pointer-events-none disabled:opacity-40"
         >
           Anterior
         </button>
@@ -479,7 +559,7 @@ export default function OnboardingPage() {
               (step === 0 && (!form.fullName.trim() || !form.coachId)) ||
               (step === 1 && !consentAccepted)
             }
-            className="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:pointer-events-none disabled:opacity-40"
+            className="bg-accent hover:bg-accent-strong rounded-full px-6 py-3 text-sm font-semibold text-white transition disabled:pointer-events-none disabled:opacity-40"
           >
             Siguiente
           </button>
@@ -487,12 +567,12 @@ export default function OnboardingPage() {
           <button
             type="button"
             onClick={handleSubmit}
-            className="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent-strong"
+            className="bg-accent hover:bg-accent-strong rounded-full px-6 py-3 text-sm font-semibold text-white transition"
           >
             Completar alta
           </button>
         )}
       </div>
     </main>
-  );
+  )
 }

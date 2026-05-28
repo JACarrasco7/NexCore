@@ -5,7 +5,6 @@ import { PageShell } from '@/components/layout'
 import { SectionIntro } from '@/components/section-intro'
 import { useToast } from '@/components/ui/toast'
 import { Skeleton } from '@/components/ui/skeleton'
-import { apiFetch, apiPost } from '@/lib/store'
 
 type AthleteOption = {
   id: string
@@ -90,11 +89,13 @@ export default function CompareAthletesPage() {
   const [loadingAthletes, setLoadingAthletes] = useState(true)
 
   useEffect(() => {
-    apiFetch('/api/athletes')
-      .then((d: any) => {
-        const arr = Array.isArray(d) ? d : d?.items ?? d?.athletes ?? []
-        setAthletes(arr)
+    fetch('/api/athletes')
+      .then(async (r) => {
+        if (!r.ok) return []
+        const data = await r.json()
+        return Array.isArray(data) ? data : (data?.athletes ?? [])
       })
+      .then((data: AthleteOption[]) => setAthletes(data))
       .catch(() => setAthletes([]))
       .finally(() => setLoadingAthletes(false))
   }, [])
@@ -112,13 +113,16 @@ export default function CompareAthletesPage() {
     }
     setLoading(true)
     try {
-      const data = await apiPost<CompareResult[]>('/api/athletes/compare', { ids: selected }).catch(
-        async (e) => {
-          pushToast({ title: 'Error al comparar', variant: 'error' })
-          return null
-        }
-      )
-      if (data) setResults(data)
+      const res = await fetch('/api/athletes/compare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selected }),
+      })
+      if (res.ok) setResults(await res.json())
+      else {
+        const err: { error?: string } = await res.json().catch(() => ({}))
+        pushToast({ title: err.error ?? 'Error al comparar', variant: 'error' })
+      }
     } finally {
       setLoading(false)
     }
@@ -205,7 +209,7 @@ export default function CompareAthletesPage() {
                   Métrica
                 </th>
                 {results.map((r) => (
-                  <th key={r.id} className="min-w-30 px-3 py-3 text-center font-semibold">
+                  <th key={r.id} className="min-w-[120px] px-3 py-3 text-center font-semibold">
                     <span className="block truncate">{r.fullName}</span>
                     <span className="text-foreground/50 text-xs font-normal">{r.phaseLabel}</span>
                   </th>

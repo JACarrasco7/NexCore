@@ -2,10 +2,17 @@ import * as otplib from 'otplib'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 
-const authenticator: any =
-  (otplib as any).authenticator ||
-  ((otplib as any).default && (otplib as any).default.authenticator) ||
-  otplib
+interface Authenticator {
+  generateSecret(): string
+  check(token: string, secret: string): boolean
+  keyuri?(account: string, issuer: string, secret: string): string
+  options?: { window?: number }
+}
+
+const authenticator: Authenticator =
+  (otplib as unknown as { authenticator?: Authenticator }).authenticator ||
+  (otplib as unknown as { default?: { authenticator?: Authenticator } }).default?.authenticator ||
+  (otplib as unknown as Authenticator)
 
 // try to set a small verification window; ignore if object is non-extensible
 try {

@@ -36,12 +36,12 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-eval' 'unsafe-inline'", // Next.js HMR needs unsafe-eval in dev
-      "style-src 'self' 'unsafe-inline'", // Tailwind inlines styles
-      "img-src 'self' blob: data:",
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' blob: data: https://wger.de https://*.wger.de",
       "font-src 'self'",
-      "connect-src 'self'",
-      "media-src 'none'",
+      "connect-src 'self' https://cdn.jsdelivr.net",
+      "media-src 'self' blob:",
       "object-src 'none'",
       "frame-ancestors 'self'",
       "base-uri 'self'",
@@ -53,6 +53,9 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
+  output: isDev ? undefined : 'export',
+  trailingSlash: true,
+  skipTrailingSlashRedirect: true,
   async headers() {
     return [
       {
@@ -64,12 +67,11 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default withSentryConfig(nextConfig, {
-  // Solo subir source maps si hay DSN configurado
-  silent: !process.env.SENTRY_DSN,
-  disableLogger: true,
-  // Suprimir la telemetría de Sentry
-  telemetry: false,
-  // No incluir el SDK en el bundle del cliente si no hay DSN
-  autoInstrumentServerFunctions: !!process.env.SENTRY_DSN,
-})
+export default process.env.SENTRY_DSN
+  ? withSentryConfig(nextConfig, {
+      silent: !process.env.SENTRY_DSN,
+      disableLogger: true,
+      telemetry: false,
+      autoInstrumentServerFunctions: !!process.env.SENTRY_DSN,
+    })
+  : nextConfig

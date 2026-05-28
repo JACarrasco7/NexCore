@@ -1,34 +1,35 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
-import { assertAthleteAccess } from "@/lib/api";
-import type { ExerciseNote } from "@/lib/domain";
-import { parseJsonOrError } from "@/lib/api/json-parser";
+import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/auth'
+import { assertAthleteAccess } from '@/lib/api'
+import type { ExerciseNote } from '@/lib/domain'
+import { parseJsonOrError } from '@/lib/api/json-parser'
+import { exerciseNoteSchema } from '@/lib/validators'
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const session = await auth()
+  if (!session?.user?.id) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { searchParams } = new URL(request.url);
-  const athleteId = searchParams.get("athleteId");
-  const exerciseName = searchParams.get("exercise");
+  const { searchParams } = new URL(request.url)
+  const athleteId = searchParams.get('athleteId')
+  const exerciseName = searchParams.get('exercise')
 
   if (!athleteId || !exerciseName) {
-    return NextResponse.json({ error: "athleteId y exercise requeridos" }, { status: 400 });
+    return NextResponse.json({ error: 'athleteId y exercise requeridos' }, { status: 400 })
   }
 
   try {
-    await assertAthleteAccess(athleteId);
+    await assertAthleteAccess(athleteId)
   } catch {
-    return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
+    return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
   }
 
   const notes = await prisma.exerciseNote.findMany({
     where: { athleteId, exerciseName },
-    orderBy: { createdAt: "desc" },
-  });
+    orderBy: { createdAt: 'desc' },
+  })
 
   const mapped: ExerciseNote[] = notes.map((n) => ({
     id: n.id,
@@ -37,27 +38,28 @@ export async function GET(request: Request) {
     content: n.content,
     createdAt: n.createdAt.toISOString(),
     updatedAt: n.updatedAt.toISOString(),
-  }));
+  }))
 
-  return NextResponse.json(mapped);
+  return NextResponse.json(mapped)
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const session = await auth()
+  if (!session?.user?.id) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const result = await parseJsonOrError(request);
-  if (!result.ok) return result.error;
-  const body = result.data as { athleteId: string; exerciseName: string; content: string };
+  const result = await parseJsonOrError(request)
+  if (!result.ok) return result.error
 
-  if (!body.athleteId || !body.exerciseName || !body.content?.trim()) {
-    return NextResponse.json({ error: "athleteId, exerciseName y content requeridos" }, { status: 400 });
+  const parsed = exerciseNoteSchema.safeParse(result.data)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
   }
+  const body = parsed.data
 
   try {
-    await assertAthleteAccess(body.athleteId);
+    await assertAthleteAccess(body.athleteId)
   } catch {
-    return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
+    return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
   }
 
   const note = await prisma.exerciseNote.create({
@@ -66,14 +68,17 @@ export async function POST(request: Request) {
       exerciseName: body.exerciseName,
       content: body.content.trim(),
     },
-  });
+  })
 
-  return NextResponse.json({
-    id: note.id,
-    athleteId: note.athleteId,
-    exerciseName: note.exerciseName,
-    content: note.content,
-    createdAt: note.createdAt.toISOString(),
-    updatedAt: note.updatedAt.toISOString(),
-  } satisfies ExerciseNote, { status: 201 });
+  return NextResponse.json(
+    {
+      id: note.id,
+      athleteId: note.athleteId,
+      exerciseName: note.exerciseName,
+      content: note.content,
+      createdAt: note.createdAt.toISOString(),
+      updatedAt: note.updatedAt.toISOString(),
+    } satisfies ExerciseNote,
+    { status: 201 }
+  )
 }

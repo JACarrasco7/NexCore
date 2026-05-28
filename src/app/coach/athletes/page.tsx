@@ -1,9 +1,13 @@
-﻿"use client"
+﻿'use client'
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { useForm, FormProvider } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Modal } from '@/components/ui/modal'
+import { FormField } from '@/components/ui/form-field'
 import { useToast } from '@/components/ui/toast'
 import { ViewModeToggle } from '@/components/ui/view-mode-toggle'
 import { PageShell, PageHeader } from '@/components/layout'
@@ -12,6 +16,14 @@ import { useCoachMe } from '@/lib/use-coach-me'
 import type { AthleteProfile } from '@/lib/domain'
 
 type CatalogGoal = { code: string; label: string; isVisible: boolean }
+
+const editAthleteSchema = z.object({
+  fullName: z.string().min(1, 'El nombre es obligatorio'),
+  goal: z.enum(['volumen', 'definicion', 'mantenimiento', 'peak-week']),
+  phaseLabel: z.string(),
+})
+
+type EditAthleteForm = z.infer<typeof editAthleteSchema>
 
 // Visual tones stay local — not in the catalog API
 const GOAL_TONES: Record<string, string> = {
@@ -41,67 +53,60 @@ function EditAthleteModal({
   onSave: (id: string, data: Partial<AthleteProfile>) => Promise<void>
   onClose: () => void
 }) {
-  const [fullName, setFullName] = useState(athlete.fullName)
-  const [goal, setGoal] = useState(athlete.goal)
-  const [phaseLabel, setPhaseLabel] = useState(athlete.phaseLabel)
-  const [saving, setSaving] = useState(false)
+  const methods = useForm<EditAthleteForm>({
+    resolver: zodResolver(editAthleteSchema),
+    defaultValues: {
+      fullName: athlete.fullName,
+      goal: athlete.goal,
+      phaseLabel: athlete.phaseLabel,
+    },
+  })
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true)
-    try {
-      await onSave(athlete.id, { fullName, goal: goal as AthleteProfile['goal'], phaseLabel })
-      onClose()
-    } finally {
-      setSaving(false)
-    }
+  const {
+    handleSubmit,
+    formState: { isSubmitting },
+  } = methods
+
+  async function onSubmit(data: EditAthleteForm) {
+    await onSave(athlete.id, {
+      fullName: data.fullName,
+      goal: data.goal,
+      phaseLabel: data.phaseLabel,
+    })
+    onClose()
   }
 
   return (
-    <Modal
-      open
-      onClose={onClose}
-      size="sm"
-      title="Editar atleta"
-      description="Actualiza los datos principales del atleta."
-      footer={
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="border-line hover:bg-surface-strong rounded-full border px-5 py-3 text-sm font-medium transition"
-          >
-            Cancelar
-          </button>
-          <button
-            form="edit-athlete-form"
-            type="submit"
-            disabled={saving}
-            className="bg-accent hover:bg-accent-strong rounded-full px-5 py-3 text-sm font-semibold text-white transition disabled:opacity-50"
-          >
-            {saving ? 'Guardando...' : 'Guardar cambios'}
-          </button>
-        </div>
-      }
-    >
-      <form id="edit-athlete-form" onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-1">
-          <label className="text-foreground/60 text-xs font-medium">Nombre completo</label>
-          <input
-            type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            required
-            className="border-line bg-surface-strong focus:border-accent w-full rounded-2xl border px-4 py-2.5 text-sm transition outline-none"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-foreground/60 text-xs font-medium">Objetivo</label>
-          <select
-            value={goal}
-            onChange={(e) => setGoal(e.target.value as AthleteProfile['goal'])}
-            className="border-line bg-surface-strong focus:border-accent w-full rounded-2xl border px-4 py-2.5 text-sm transition outline-none"
-          >
+    <FormProvider {...methods}>
+      <Modal
+        open
+        onClose={onClose}
+        size="sm"
+        title="Editar atleta"
+        description="Actualiza los datos principales del atleta."
+        footer={
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="border-line hover:bg-surface-strong rounded-full border px-5 py-3 text-sm font-medium transition"
+            >
+              Cancelar
+            </button>
+            <button
+              form="edit-athlete-form"
+              type="submit"
+              disabled={isSubmitting}
+              className="bg-accent hover:bg-accent-strong rounded-full px-5 py-3 text-sm font-semibold text-white transition disabled:opacity-50"
+            >
+              {isSubmitting ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+          </div>
+        }
+      >
+        <form id="edit-athlete-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <FormField name="fullName" label="Nombre completo" />
+          <FormField name="goal" label="Objetivo" type="select">
             {goals
               .filter((g) => g.isVisible)
               .map((g) => (
@@ -109,20 +114,15 @@ function EditAthleteModal({
                   {g.label}
                 </option>
               ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label className="text-foreground/60 text-xs font-medium">Etiqueta de fase</label>
-          <input
-            type="text"
-            value={phaseLabel}
-            onChange={(e) => setPhaseLabel(e.target.value)}
+          </FormField>
+          <FormField
+            name="phaseLabel"
+            label="Etiqueta de fase"
             placeholder="ej. Semana 4 · Acumulación"
-            className="border-line bg-surface-strong focus:border-accent w-full rounded-2xl border px-4 py-2.5 text-sm transition outline-none"
           />
-        </div>
-      </form>
-    </Modal>
+        </form>
+      </Modal>
+    </FormProvider>
   )
 }
 
@@ -139,7 +139,9 @@ export default function AthletesPage() {
   const [catalogGoals, setCatalogGoals] = useState<CatalogGoal[]>(FALLBACK_GOALS)
 
   useEffect(() => {
-    apiFetch<{ goals?: Array<{ code: string; label: string; isVisible: boolean }> }>('/api/teams/catalog')
+    apiFetch<{ goals?: Array<{ code: string; label: string; isVisible: boolean }> }>(
+      '/api/teams/catalog'
+    )
       .then((data) => {
         if (!data?.goals?.length) return
         // API returns codes in UPPERCASE; normalize to lowercase-dash for matching athlete.goal

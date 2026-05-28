@@ -13,11 +13,35 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const athlete = await prisma.athlete.findUnique({
     where: { id },
     include: {
-      checkIns: { orderBy: { date: 'desc' }, take: 12, select: { id: true, weekLabel: true, date: true, weightKg: true, stepsAvg: true, sleepHours: true, adherencePct: true, sensations: true, notes: true, coachNote: true } },
-      dailyLogs: { orderBy: { date: 'desc' }, take: 50, select: { date: true, weightKg: true, sleepHours: true, steps: true } }, // Reduced from 90
+      checkIns: {
+        orderBy: { date: 'desc' },
+        take: 12,
+        select: {
+          id: true,
+          weekLabel: true,
+          date: true,
+          weightKg: true,
+          stepsAvg: true,
+          sleepHours: true,
+          adherencePct: true,
+          sensations: true,
+          notes: true,
+          coachNote: true,
+        },
+      },
+      dailyLogs: {
+        orderBy: { date: 'desc' },
+        take: 50,
+        select: { date: true, weightKg: true, sleepHours: true, steps: true },
+      }, // Reduced from 90
       plans: {
         where: { deletedAt: null },
-        select: { id: true, title: true, weekLabel: true, createdAt: true, _count: { select: { sessions: true } } }, // No nested sessions/exercises
+        select: {
+          id: true,
+          title: true,
+          createdAt: true,
+          _count: { select: { sessions: true } },
+        }, // No nested sessions/exercises
         orderBy: { createdAt: 'desc' },
         take: 5,
       },
@@ -25,11 +49,56 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         where: { deletedAt: null },
         orderBy: { createdAt: 'desc' },
         take: 3,
-        select: { id: true, title: true, phase: true, kcalTarget: true, proteinG: true, carbsG: true, fatG: true, isActive: true, notes: true }, // No nested meals/foods
+        select: {
+          id: true,
+          title: true,
+          phase: true,
+          kcalTarget: true,
+          proteinG: true,
+          carbsG: true,
+          fatG: true,
+          isActive: true,
+          notes: true,
+        }, // No nested meals/foods
       },
-      sessionLogs: { orderBy: { date: 'desc' }, take: 30, select: { id: true, sessionName: true, date: true, durationMin: true, kcalBurned: true, heartRateAvg: true, source: true } },
-      documents: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 10, select: { id: true, title: true, category: true, fileName: true, createdAt: true } },
-      bodyMeasurements: { orderBy: { date: 'asc' }, take: 13, select: { id: true, date: true, weightKg: true, bodyFatPct: true, waistCm: true, hipCm: true, chestCm: true, armCm: true, quadCm: true, calfCm: true, glutesCm: true, neckCm: true, notes: true } }, // Reduced from 52 to ~weekly
+      sessionLogs: {
+        orderBy: { date: 'desc' },
+        take: 30,
+        select: {
+          id: true,
+          sessionName: true,
+          date: true,
+          durationMin: true,
+          kcalBurned: true,
+          heartRateAvg: true,
+          source: true,
+        },
+      },
+      documents: {
+        where: { deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { id: true, title: true, category: true, fileName: true, createdAt: true },
+      },
+      bodyMeasurements: {
+        orderBy: { date: 'asc' },
+        take: 13,
+        select: {
+          id: true,
+          date: true,
+          weightKg: true,
+          bodyFatPct: true,
+          waistCm: true,
+          hipCm: true,
+          chestCm: true,
+          armCm: true,
+          quadCm: true,
+          calfCm: true,
+          glutesCm: true,
+          neckCm: true,
+          notes: true,
+        },
+      }, // Reduced from 52 to ~weekly
       contextProfile: { select: { restrictedFoodsJson: true, restrictedExercises: true } },
     },
   })
@@ -200,7 +269,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     plans: athlete.plans.map((p) => ({
       id: p.id,
       title: p.title,
-      weekLabel: p.weekLabel,
       sessionsCount: p._count.sessions,
       createdAt: p.createdAt.toISOString().split('T')[0],
     })),

@@ -6,20 +6,18 @@ import { prisma } from '@/lib/prisma'
 import { OtpType } from '@prisma/client'
 import { parseJsonOrError } from '@/lib/api/json-parser'
 import { badRequest, unauthorized, forbidden, serverError } from '@/lib/api/error-response'
+import { z } from 'zod'
 
-const bodySchema = {
-  otp: 'string',
-  dni: 'string',
-  checkboxAccepted: 'boolean',
-}
-
-function validateBody(body: any) {
-  if (typeof body !== 'object' || body === null) return 'Cuerpo inválido'
-  if (typeof body.otp !== 'string' || !/^\d{6}$/.test(body.otp)) return 'OTP inválido'
-  if (typeof body.dni !== 'string' || body.dni.trim().length < 4) return 'DNI inválido'
-  if (body.checkboxAccepted !== true) return 'Debes aceptar el acuerdo legal'
-  return null
-}
+const signDocumentSchema = z
+  .object({
+    otp: z.string().regex(/^\d{6}$/, 'OTP inválido'),
+    dni: z.string().min(4, 'DNI inválido'),
+    checkboxAccepted: z.boolean(),
+  })
+  .refine((data) => data.checkboxAccepted === true, {
+    message: 'Debes aceptar el acuerdo legal',
+    path: ['checkboxAccepted'],
+  })
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -30,13 +28,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params
   const parsed = await parseJsonOrError(request)
   if (!parsed.ok) return parsed.error
-  const body = parsed.data as any
-  const errorMessage = validateBody(body)
-  if (errorMessage) {
-    return badRequest(errorMessage)
+
+  const validated = signDocumentSchema.safeParse(parsed.data)
+  if (!validated.success) {
+    return badRequest(validated.error.issues[0].message)
   }
 
-  const { otp, dni } = body as { otp: string; dni: string; checkboxAccepted: boolean }
+  const { otp, dni } = validated.data
   const untrustedUser = session.user
   const userId = untrustedUser.id as string
 

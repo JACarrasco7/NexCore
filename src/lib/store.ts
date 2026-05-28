@@ -1,6 +1,16 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  athleteKeys,
+  checkInKeys,
+  dailyLogKeys,
+  trainingPlanKeys,
+  sessionLogKeys,
+  nutritionPlanKeys,
+  servicePlanKeys,
+} from '@/lib/query-keys'
 import type {
   AthleteProfile,
   CheckInEntry,
@@ -16,7 +26,6 @@ export async function apiFetch<T>(url: string): Promise<T> {
   if (!res.ok) throw new Error(`API ${url} -> ${res.status}`)
   const data = await res.json()
 
-  // Normalize common wrapper shapes: array, { items: [] }, { athletes: [] }, etc.
   if (Array.isArray(data)) return data as T
   if (data && typeof data === 'object') {
     const anyData = data as Record<string, unknown>
@@ -44,48 +53,49 @@ export type { CheckInEntry, SessionLog }
 // ---------------------------------------------------------------------------
 
 export function useAthletes(coachId?: string) {
-  const [athletes, setAthletes] = useState<AthleteProfile[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
 
-  useEffect(() => {
-    const url = coachId ? `/api/athletes?coachId=${coachId}` : '/api/athletes'
-    apiFetch<any>(url)
-      .then((data) => {
-        const items = Array.isArray(data) ? data : (data?.items ?? data?.athletes ?? [])
-        setAthletes(items as AthleteProfile[])
-      })
-      .catch((err) => {
-        console.error(err)
-        setAthletes([])
-      })
-      .finally(() => setLoading(false))
-  }, [coachId])
+  const { data: athletes = [], isLoading: loading } = useQuery({
+    queryKey: athleteKeys.list({ coachId }),
+    queryFn: async () => {
+      const url = coachId ? `/api/athletes?coachId=${coachId}` : '/api/athletes'
+      const data = await apiFetch<any>(url)
+      const items = Array.isArray(data) ? data : (data?.items ?? data?.athletes ?? [])
+      return items as AthleteProfile[]
+    },
+  })
 
   const addAthlete = useCallback(
     async (athlete: Omit<AthleteProfile, 'id'> & { id?: string; coachId?: string }) => {
       const created = await apiPost<AthleteProfile>('/api/athletes', athlete)
-      setAthletes((prev) => [...prev, created])
+      queryClient.invalidateQueries({ queryKey: athleteKeys.lists() })
       return created
     },
-    []
+    [queryClient]
   )
 
-  const removeAthlete = useCallback(async (id: string) => {
-    await fetch(`/api/athletes/${id}`, { method: 'DELETE' })
-    setAthletes((prev) => prev.filter((a) => a.id !== id))
-  }, [])
+  const removeAthlete = useCallback(
+    async (id: string) => {
+      await fetch(`/api/athletes/${id}`, { method: 'DELETE' })
+      queryClient.invalidateQueries({ queryKey: athleteKeys.lists() })
+    },
+    [queryClient]
+  )
 
-  const updateAthlete = useCallback(async (id: string, data: Partial<AthleteProfile>) => {
-    const res = await fetch(`/api/athletes/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-    if (!res.ok) throw new Error(`PATCH /api/athletes/${id} -> ${res.status}`)
-    const updated: AthleteProfile = await res.json()
-    setAthletes((prev) => prev.map((a) => (a.id === id ? updated : a)))
-    return updated
-  }, [])
+  const updateAthlete = useCallback(
+    async (id: string, data: Partial<AthleteProfile>) => {
+      const res = await fetch(`/api/athletes/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) throw new Error(`PATCH /api/athletes/${id} -> ${res.status}`)
+      const updated: AthleteProfile = await res.json()
+      queryClient.invalidateQueries({ queryKey: athleteKeys.lists() })
+      return updated
+    },
+    [queryClient]
+  )
 
   return { athletes, loading, addAthlete, removeAthlete, updateAthlete }
 }
@@ -93,22 +103,24 @@ export function useAthletes(coachId?: string) {
 // ---------------------------------------------------------------------------
 
 export function useCheckIns(athleteId?: string) {
-  const [checkIns, setCheckIns] = useState<CheckInEntry[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
 
-  useEffect(() => {
-    const url = athleteId ? `/api/check-ins?athleteId=${athleteId}` : '/api/check-ins'
-    apiFetch<CheckInEntry[]>(url)
-      .then(setCheckIns)
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [athleteId])
+  const { data: checkIns = [], isLoading: loading } = useQuery({
+    queryKey: checkInKeys.list(athleteId),
+    queryFn: async () => {
+      const url = athleteId ? `/api/check-ins?athleteId=${athleteId}` : '/api/check-ins'
+      return apiFetch<CheckInEntry[]>(url)
+    },
+  })
 
-  const addCheckIn = useCallback(async (entry: CheckInEntry) => {
-    const created = await apiPost<CheckInEntry>('/api/check-ins', entry)
-    setCheckIns((prev) => [...prev, created])
-    return created
-  }, [])
+  const addCheckIn = useCallback(
+    async (entry: CheckInEntry) => {
+      const created = await apiPost<CheckInEntry>('/api/check-ins', entry)
+      queryClient.invalidateQueries({ queryKey: checkInKeys.all })
+      return created
+    },
+    [queryClient]
+  )
 
   return { checkIns, loading, addCheckIn }
 }
@@ -116,22 +128,24 @@ export function useCheckIns(athleteId?: string) {
 // ---------------------------------------------------------------------------
 
 export function useDailyLogs(athleteId?: string) {
-  const [dailyLogs, setDailyLogs] = useState<DailyLogEntry[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
 
-  useEffect(() => {
-    const url = athleteId ? `/api/daily-logs?athleteId=${athleteId}` : '/api/daily-logs'
-    apiFetch<DailyLogEntry[]>(url)
-      .then(setDailyLogs)
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [athleteId])
+  const { data: dailyLogs = [], isLoading: loading } = useQuery({
+    queryKey: dailyLogKeys.list(athleteId),
+    queryFn: async () => {
+      const url = athleteId ? `/api/daily-logs?athleteId=${athleteId}` : '/api/daily-logs'
+      return apiFetch<DailyLogEntry[]>(url)
+    },
+  })
 
-  const addDailyLog = useCallback(async (entry: DailyLogEntry) => {
-    const created = await apiPost<DailyLogEntry>('/api/daily-logs', entry)
-    setDailyLogs((prev) => [...prev, created])
-    return created
-  }, [])
+  const addDailyLog = useCallback(
+    async (entry: DailyLogEntry) => {
+      const created = await apiPost<DailyLogEntry>('/api/daily-logs', entry)
+      queryClient.invalidateQueries({ queryKey: dailyLogKeys.all })
+      return created
+    },
+    [queryClient]
+  )
 
   return { dailyLogs, loading, addDailyLog }
 }
@@ -139,31 +153,25 @@ export function useDailyLogs(athleteId?: string) {
 // ---------------------------------------------------------------------------
 
 export function useTrainingPlans(athleteId?: string) {
-  const [plans, setPlans] = useState<TrainingPlan[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
 
-  useEffect(() => {
-    if (!athleteId) {
-      setPlans([])
-      setLoading(false)
-      return
-    }
+  const { data: plans = [], isLoading: loading } = useQuery({
+    queryKey: trainingPlanKeys.list(athleteId),
+    queryFn: async () => {
+      if (!athleteId) return [] as TrainingPlan[]
+      return apiFetch<TrainingPlan[]>(`/api/plans?athleteId=${athleteId}`)
+    },
+    enabled: !!athleteId,
+  })
 
-    const url = `/api/plans?athleteId=${athleteId}`
-    apiFetch<TrainingPlan[]>(url)
-      .then(setPlans)
-      .catch((err) => {
-        console.error(err)
-        setPlans([])
-      })
-      .finally(() => setLoading(false))
-  }, [athleteId])
-
-  const addPlan = useCallback(async (plan: TrainingPlan) => {
-    const created = await apiPost<TrainingPlan>('/api/plans', plan)
-    setPlans((prev) => [...prev, created])
-    return created
-  }, [])
+  const addPlan = useCallback(
+    async (plan: TrainingPlan) => {
+      const created = await apiPost<TrainingPlan>('/api/plans', plan)
+      queryClient.invalidateQueries({ queryKey: trainingPlanKeys.all })
+      return created
+    },
+    [queryClient]
+  )
 
   return { plans, loading, addPlan }
 }
@@ -171,75 +179,111 @@ export function useTrainingPlans(athleteId?: string) {
 // ---------------------------------------------------------------------------
 
 export function useSessionLogs(athleteId?: string) {
-  const [logs, setLogs] = useState<SessionLog[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
 
-  useEffect(() => {
-    const url = athleteId ? `/api/session-logs?athleteId=${athleteId}` : '/api/session-logs'
-    apiFetch<SessionLog[]>(url)
-      .then(setLogs)
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [athleteId])
+  const { data: logs = [], isLoading: loading } = useQuery({
+    queryKey: sessionLogKeys.list(athleteId),
+    queryFn: async () => {
+      const url = athleteId ? `/api/session-logs?athleteId=${athleteId}` : '/api/session-logs'
+      return apiFetch<SessionLog[]>(url)
+    },
+  })
 
-  const addSessionLog = useCallback(async (log: SessionLog) => {
-    const created = await apiPost<SessionLog>('/api/session-logs', log)
-    setLogs((prev) => [...prev, created])
-    return created
-  }, [])
+  const addSessionLog = useCallback(
+    async (log: SessionLog) => {
+      const created = await apiPost<SessionLog>('/api/session-logs', log)
+      queryClient.invalidateQueries({ queryKey: sessionLogKeys.all })
+      return created
+    },
+    [queryClient]
+  )
 
-  return { logs, loading, addSessionLog }
+  const toggleSessionCompletion = useCallback(
+    async (sessionId: string, done: boolean) => {
+      await apiPost(`/api/session-logs/toggle`, { sessionId, completed: done }).catch(() => {})
+      queryClient.invalidateQueries({ queryKey: sessionLogKeys.all })
+    },
+    [queryClient]
+  )
+
+  return { logs, loading, addSessionLog, toggleSessionCompletion }
 }
 
 // ---------------------------------------------------------------------------
 
 export function useNutritionPlans(athleteId?: string) {
-  const [plans, setPlans] = useState<NutritionPlan[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
 
-  const fetchPlans = useCallback(async () => {
-    const url = athleteId ? `/api/nutrition-plans?athleteId=${athleteId}` : '/api/nutrition-plans'
-    const data = await apiFetch<NutritionPlan[]>(url).catch(() => [])
-    setPlans(data)
-    setLoading(false)
-  }, [athleteId])
-
-  useEffect(() => {
-    fetchPlans()
-  }, [fetchPlans])
+  const { data: plans = [], isLoading: loading } = useQuery({
+    queryKey: nutritionPlanKeys.list(athleteId),
+    queryFn: async () => {
+      const url = athleteId ? `/api/nutrition-plans?athleteId=${athleteId}` : '/api/nutrition-plans'
+      return apiFetch<NutritionPlan[]>(url).catch(() => [] as NutritionPlan[])
+    },
+  })
 
   const activePlan = plans.find((p) => p.isActive) ?? plans[0] ?? null
 
-  return { plans, activePlan, loading, refresh: fetchPlans }
+  const addFoodToMeal = useCallback(
+    async (
+      planId: string,
+      mealId: string,
+      food: {
+        food: string
+        quantity?: number
+        unit?: string
+        kcal?: number
+        proteinG?: number
+        carbsG?: number
+        fatG?: number
+      }
+    ) => {
+      const created = await apiPost(`/api/nutrition-plans/${planId}/meals/${mealId}/foods`, food)
+      queryClient.invalidateQueries({ queryKey: nutritionPlanKeys.all })
+      return created
+    },
+    [queryClient]
+  )
+
+  return {
+    plans,
+    activePlan,
+    loading,
+    refresh: () => queryClient.invalidateQueries({ queryKey: nutritionPlanKeys.all }),
+    addFoodToMeal,
+  }
 }
 
 export function useServicePlans() {
-  const [plans, setPlans] = useState<ServicePlan[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
 
-  const fetchPlans = useCallback(async () => {
-    const data = await apiFetch<ServicePlan[]>('/api/service-plans').catch(() => [])
-    setPlans(data)
-    setLoading(false)
-  }, [])
-
-  useEffect(() => {
-    fetchPlans()
-  }, [fetchPlans])
+  const { data: plans = [], isLoading: loading } = useQuery({
+    queryKey: servicePlanKeys.list(),
+    queryFn: () => apiFetch<ServicePlan[]>('/api/service-plans').catch(() => [] as ServicePlan[]),
+  })
 
   const addPlan = useCallback(
     async (data: Omit<ServicePlan, 'id' | 'coachId' | 'createdAt' | '_count'>) => {
       const created = await apiPost<ServicePlan>('/api/service-plans', data)
-      setPlans((prev) => [...prev, created])
+      queryClient.invalidateQueries({ queryKey: servicePlanKeys.all })
       return created
     },
-    []
+    [queryClient]
   )
 
-  const removePlan = useCallback(async (id: string) => {
-    await fetch(`/api/service-plans/${id}`, { method: 'DELETE' })
-    setPlans((prev) => prev.filter((p) => p.id !== id))
-  }, [])
+  const removePlan = useCallback(
+    async (id: string) => {
+      await fetch(`/api/service-plans/${id}`, { method: 'DELETE' })
+      queryClient.invalidateQueries({ queryKey: servicePlanKeys.all })
+    },
+    [queryClient]
+  )
 
-  return { plans, loading, addPlan, removePlan, refresh: fetchPlans }
+  return {
+    plans,
+    loading,
+    addPlan,
+    removePlan,
+    refresh: () => queryClient.invalidateQueries({ queryKey: servicePlanKeys.all }),
+  }
 }

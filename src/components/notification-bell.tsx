@@ -1,80 +1,87 @@
-"use client";
+'use client'
 
-import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import Link from 'next/link'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch, apiPost } from '@/lib/store'
 
 type NotificationItem = {
-  id: string;
-  type: string;
-  title: string;
-  body: string | null;
-  link: string | null;
-  read: boolean;
-  createdAt: string;
-};
+  id: string
+  type: string
+  title: string
+  body: string | null
+  link: string | null
+  read: boolean
+  createdAt: string
+}
 
 function formatRelative(value: string) {
-  const diffMs = Date.now() - new Date(value).getTime();
-  const diffMin = Math.max(1, Math.floor(diffMs / 60000));
-  if (diffMin < 60) return `hace ${diffMin} min`;
-  const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `hace ${diffHours} h`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `hace ${diffDays} d`;
+  const diffMs = Date.now() - new Date(value).getTime()
+  const diffMin = Math.max(1, Math.floor(diffMs / 60000))
+  if (diffMin < 60) return `hace ${diffMin} min`
+  const diffHours = Math.floor(diffMin / 60)
+  if (diffHours < 24) return `hace ${diffHours} h`
+  const diffDays = Math.floor(diffHours / 24)
+  return `hace ${diffDays} d`
 }
 
 export function NotificationBell() {
-  const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<NotificationItem[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [unreadIds, setUnreadIds] = useState<string[]>([]);
-  const ref = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false)
+  const [items, setItems] = useState<NotificationItem[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [unreadIds, setUnreadIds] = useState<string[]>([])
+  const ref = useRef<HTMLDivElement>(null)
 
   async function refresh() {
     const [latestArr, unreadArr] = await Promise.all([
-      apiFetch<any>('/api/notifications?limit=6').catch(() => []),
-      apiFetch<any>('/api/notifications?unread=1&limit=50').catch(() => []),
+      apiFetch<any>('/api/notifications?take=6').catch(() => []),
+      apiFetch<any>('/api/notifications?unread=1&take=50').catch(() => []),
     ])
 
-    setItems(Array.isArray(latestArr) ? latestArr : latestArr?.items ?? [])
-    const nextUnread = Array.isArray(unreadArr) ? unreadArr : unreadArr?.items ?? []
+    setItems(Array.isArray(latestArr) ? latestArr : (latestArr?.items ?? []))
+    const nextUnread = Array.isArray(unreadArr) ? unreadArr : (unreadArr?.items ?? [])
     setUnreadCount(Array.isArray(nextUnread) ? nextUnread.length : 0)
     setUnreadIds(Array.isArray(nextUnread) ? nextUnread.map((item) => item.id) : [])
   }
 
   useEffect(() => {
-    void refresh();
-    const id = window.setInterval(() => void refresh(), 20000);
-    return () => window.clearInterval(id);
-  }, []);
+    void refresh()
+    const id = window.setInterval(() => void refresh(), 20000)
+    return () => window.clearInterval(id)
+  }, [])
 
   useEffect(() => {
     function onMouseDown(event: MouseEvent) {
       if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
+        setOpen(false)
       }
     }
-    document.addEventListener("mousedown", onMouseDown);
-    return () => document.removeEventListener("mousedown", onMouseDown);
-  }, []);
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [])
 
-  const visibleUnread = useMemo(() => new Set(items.filter((item) => !item.read).map((item) => item.id)), [items]);
+  const visibleUnread = useMemo(
+    () => new Set(items.filter((item) => !item.read).map((item) => item.id)),
+    [items]
+  )
 
   async function markAllRead() {
-    if (unreadIds.length === 0) return;
+    if (unreadIds.length === 0) return
     // Optimistic update
-    const idsToMark = new Set(unreadIds);
-    setItems((current) => current.map((item) => (idsToMark.has(item.id) ? { ...item, read: true } : item)));
-    setUnreadCount(0);
-    const prevIds = [...unreadIds];
-    setUnreadIds([]);
+    const idsToMark = new Set(unreadIds)
+    setItems((current) =>
+      current.map((item) => (idsToMark.has(item.id) ? { ...item, read: true } : item))
+    )
+    setUnreadCount(0)
+    const prevIds = [...unreadIds]
+    setUnreadIds([])
 
     try {
       await apiPost('/api/notifications/mark-read', { ids: prevIds })
     } catch (err) {
       // Revertir si falla
-      setItems((current) => current.map((item) => (idsToMark.has(item.id) ? { ...item, read: false } : item)))
+      setItems((current) =>
+        current.map((item) => (idsToMark.has(item.id) ? { ...item, read: false } : item))
+      )
       setUnreadCount(prevIds.length)
       setUnreadIds(prevIds)
     }
@@ -86,37 +93,46 @@ export function NotificationBell() {
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-label="Notificaciones"
-        className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface transition hover:bg-surface-strong"
+        className="border-line bg-surface hover:bg-surface-strong relative flex h-9 w-9 items-center justify-center rounded-xl border transition"
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" />
           <path d="M10 17a2 2 0 0 0 4 0" />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-bold text-white">
-            {unreadCount > 9 ? "9+" : unreadCount}
+          <span className="bg-danger absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold text-white">
+            {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 z-40 w-[min(92vw,24rem)] rounded-3xl border border-line bg-background shadow-2xl">
-          <div className="flex items-center justify-between border-b border-line px-4 py-3">
+        <div className="border-line bg-background absolute top-12 right-0 z-40 w-[min(92vw,24rem)] rounded-3xl border shadow-2xl">
+          <div className="border-line flex items-center justify-between border-b px-4 py-3">
             <div>
-              <p className="text-sm font-semibold text-foreground">Notificaciones</p>
-              <p className="text-[11px] text-foreground/45">{unreadCount} sin leer</p>
+              <p className="text-foreground text-sm font-semibold">Notificaciones</p>
+              <p className="text-foreground/45 text-[11px]">{unreadCount} sin leer</p>
             </div>
             <button
               type="button"
               onClick={() => void markAllRead()}
-              className="text-xs font-medium text-accent transition hover:text-accent-strong"
+              className="text-accent hover:text-accent-strong text-xs font-medium transition"
             >
               Marcar todo
             </button>
           </div>
 
           {items.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-foreground/50">
+            <div className="text-foreground/50 px-4 py-8 text-center text-sm">
               No hay notificaciones todavía.
             </div>
           ) : (
@@ -125,13 +141,17 @@ export function NotificationBell() {
                 const content = (
                   <>
                     <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm font-semibold text-foreground">{item.title}</p>
-                      {!item.read && <span className="mt-1 h-2 w-2 rounded-full bg-accent" />}
+                      <p className="text-foreground text-sm font-semibold">{item.title}</p>
+                      {!item.read && <span className="bg-accent mt-1 h-2 w-2 rounded-full" />}
                     </div>
-                    {item.body ? <p className="mt-1 text-xs text-foreground/60">{item.body}</p> : null}
-                    <p className="mt-2 text-[11px] text-foreground/35">{formatRelative(item.createdAt)}</p>
+                    {item.body ? (
+                      <p className="text-foreground/60 mt-1 text-xs">{item.body}</p>
+                    ) : null}
+                    <p className="text-foreground/35 mt-2 text-[11px]">
+                      {formatRelative(item.createdAt)}
+                    </p>
                   </>
-                );
+                )
 
                 if (item.link) {
                   return (
@@ -139,24 +159,27 @@ export function NotificationBell() {
                       <Link
                         href={item.link}
                         onClick={() => setOpen(false)}
-                        className={`block rounded-2xl px-3 py-3 transition hover:bg-surface ${!item.read ? "bg-accent/5" : ""}`}
+                        className={`hover:bg-surface block rounded-2xl px-3 py-3 transition ${!item.read ? 'bg-accent/5' : ''}`}
                       >
                         {content}
                       </Link>
                     </li>
-                  );
+                  )
                 }
 
                 return (
-                  <li key={item.id} className={`rounded-2xl px-3 py-3 ${!item.read ? "bg-accent/5" : ""}`}>
+                  <li
+                    key={item.id}
+                    className={`rounded-2xl px-3 py-3 ${!item.read ? 'bg-accent/5' : ''}`}
+                  >
                     {content}
                   </li>
-                );
+                )
               })}
             </ul>
           )}
         </div>
       )}
     </div>
-  );
+  )
 }

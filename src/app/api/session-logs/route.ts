@@ -187,3 +187,62 @@ export async function POST(request: Request) {
     { status: 201 }
   )
 }
+
+// ── PATCH: Toggle session completion ─────────────────────────────────────────
+export async function PATCH(request: Request) {
+  let session
+  try {
+    session = await requireSession()
+  } catch {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
+  const parseResult = await parseJsonOrError(request)
+  if (!parseResult.ok) return parseResult.error
+  const { sessionId, completed } = parseResult.data as { sessionId: string; completed: boolean }
+
+  if (!sessionId || typeof completed !== 'boolean') {
+    return NextResponse.json({ error: 'sessionId y completed requeridos' }, { status: 400 })
+  }
+
+  // Find existing log or create minimal one
+  const existing = await prisma.sessionLog.findFirst({
+    where: { sessionId },
+    orderBy: { date: 'desc' },
+  })
+
+  if (existing) {
+    await prisma.sessionLog.update({
+      where: { id: existing.id },
+      data: {
+        notes: completed
+          ? `${existing.notes}\nCompletado: ${new Date().toISOString()}`
+          : existing.notes,
+      },
+    })
+  } else {
+    // Get session info from workout session
+    const sessionInfo = await prisma.workoutSession.findUnique({
+      where: { id: sessionId },
+      include: { plan: true },
+    })
+    if (!sessionInfo) {
+      return NextResponse.json({ error: 'Sesión no encontrada' }, { status: 404 })
+    }
+    // Create minimal log for completion tracking
+    await prisma.sessionLog.create({
+      data: {
+        athleteId:
+          session.role === 'ATHLETE' ? await requireAthleteId() : sessionInfo.plan.athleteId,
+        planId: sessionInfo.planId,
+        sessionId,
+        sessionName: sessionInfo.name,
+        date: new Date(),
+        notes: completed ? `Completado: ${new Date().toISOString()}` : '',
+        source: 'manual',
+      },
+    })
+  }
+
+  return NextResponse.json({ success: true })
+}

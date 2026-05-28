@@ -80,7 +80,7 @@ export default async function PrintPlanPage({ params }: { params: Promise<{ id: 
               Atleta: <strong className="text-gray-800">{plan.athlete.fullName}</strong>
             </span>
             <span>
-              Semana: <strong className="text-gray-800">{plan.weekLabel}</strong>
+              Semanas: <strong className="text-gray-800">{plan.weeksCount}</strong>
             </span>
             {plan.coach && (
               <span>

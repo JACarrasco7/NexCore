@@ -3,7 +3,10 @@ import crypto from 'crypto'
 
 async function hasBackupCodesTable(): Promise<boolean> {
   try {
-    const res = await prisma.$queryRaw`SELECT COUNT(*) as cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'backup_codes'` as Array<Record<string, unknown>>
+    const res =
+      (await prisma.$queryRaw`SELECT COUNT(*) as cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'backup_codes'`) as Array<
+        Record<string, unknown>
+      >
     const row = Array.isArray(res) ? res[0] : res
     const cnt = row?.cnt ?? row?.COUNT ?? Object.values(row || {})[0]
     return Number(cnt) > 0
@@ -16,7 +19,10 @@ export async function getBackupCodesForUser(userId: string): Promise<string[] | 
   const table = await hasBackupCodesTable()
   if (table) {
     try {
-      const rows = await prisma.$queryRaw`SELECT code_hash FROM backup_codes WHERE user_id = ${userId} ORDER BY created_at ASC` as Array<Record<string, unknown>>
+      const rows =
+        (await prisma.$queryRaw`SELECT code_hash FROM backup_codes WHERE user_id = ${userId} ORDER BY created_at ASC`) as Array<
+          Record<string, unknown>
+        >
       if (!rows) return null
       return (Array.isArray(rows) ? rows.map((r) => String(r.code_hash ?? '')) : []).filter(Boolean)
     } catch (_e) {
@@ -55,7 +61,10 @@ export async function setBackupCodesForUser(userId: string, hashed: string[] | n
 export async function removeBackupCodeAtIndex(userId: string, index: number) {
   const table = await hasBackupCodesTable()
   if (table) {
-    const rows = await prisma.$queryRaw`SELECT id FROM backup_codes WHERE user_id = ${userId} ORDER BY created_at ASC LIMIT 1 OFFSET ${index}` as Array<Record<string, unknown>>
+    const rows =
+      (await prisma.$queryRaw`SELECT id FROM backup_codes WHERE user_id = ${userId} ORDER BY created_at ASC LIMIT 1 OFFSET ${index}`) as Array<
+        Record<string, unknown>
+      >
     const row = Array.isArray(rows) ? rows[0] : rows
     if (!row || !row.id) return
     await prisma.$executeRaw`DELETE FROM backup_codes WHERE id = ${row.id}`

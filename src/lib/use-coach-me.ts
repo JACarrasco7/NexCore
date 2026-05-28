@@ -1,29 +1,21 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { useQuery } from '@tanstack/react-query'
+import { coachKeys } from '@/lib/query-keys'
 import { apiFetch } from '@/lib/store'
 
 type CoachMe = { id: string; displayName: string }
 
 export function useCoachMe(): { coach: CoachMe | null; loading: boolean } {
   const { data: session, status } = useSession()
-  const [coach, setCoach] = useState<CoachMe | null>(null)
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (status === 'loading') return
-    if (!session?.user) {
-      setLoading(false)
-      return
-    }
-    apiFetch('/api/me/coach')
-      .then((data: any) => {
-        if (data) setCoach(data)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [session, status])
+  const { data: coach = null, isLoading: loading } = useQuery({
+    queryKey: coachKeys.me(),
+    queryFn: () => apiFetch<CoachMe>('/api/me/coach'),
+    enabled: status === 'authenticated',
+    staleTime: 5 * 60 * 1000,
+  })
 
-  return { coach, loading }
+  return { coach, loading: status === 'loading' || loading }
 }

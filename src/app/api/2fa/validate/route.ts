@@ -5,6 +5,14 @@ import { verifyToken, verifyBackupCode } from '@/lib/totp'
 import { getBackupCodesForUser, removeBackupCodeAtIndex } from '@/lib/backup-codes'
 import { checkRateLimit, getClientIp, getRateLimitKey, LIMITS } from '@/lib/rate-limit'
 import { parseJsonOrError } from '@/lib/api/json-parser'
+import { z } from 'zod'
+
+const totpValidateSchema = z
+  .object({
+    token: z.string().length(6, 'Token debe tener 6 dígitos').optional(),
+    backupCode: z.string().min(1, 'Backup code requerido').optional(),
+  })
+  .refine((data) => data.token || data.backupCode, { message: 'Token o backupCode requerido' })
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,8 +27,13 @@ export async function POST(request: NextRequest) {
 
     const parseResult = await parseJsonOrError(request)
     if (!parseResult.ok) return parseResult.error
-    const body = parseResult.data as any
-    const { token, backupCode } = body
+
+    const validated = totpValidateSchema.safeParse(parseResult.data)
+    if (!validated.success) {
+      return NextResponse.json({ error: validated.error.issues[0].message }, { status: 400 })
+    }
+
+    const { token, backupCode } = validated.data
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },

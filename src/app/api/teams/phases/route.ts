@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
 import crypto from 'crypto'
-import { parseJsonOrError } from '@/lib/api/json-parser'
-import { badRequest, unauthorized, forbidden, notFound, serverError } from '@/lib/api/error-response'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +15,10 @@ export async function GET(request: Request) {
 
   if (role === 'ADMIN') {
     if (!teamIdParam) return NextResponse.json({ teamId: null, phases: [], canManage: false })
-    const phases = await prisma.teamPhase.findMany({ where: { teamId: teamIdParam }, orderBy: { order: 'asc' } })
+    const phases = await prisma.teamPhase.findMany({
+      where: { teamId: teamIdParam },
+      orderBy: { order: 'asc' },
+    })
     return NextResponse.json({ teamId: teamIdParam, phases, canManage: true })
   }
 
@@ -32,22 +33,25 @@ export async function GET(request: Request) {
   }
 
   const allowedTeamIds = ownMemberships.map((m) => m.teamId)
-  const teamId = teamIdParam && allowedTeamIds.includes(teamIdParam) ? teamIdParam : allowedTeamIds[0]
+  const teamId =
+    teamIdParam && allowedTeamIds.includes(teamIdParam) ? teamIdParam : allowedTeamIds[0]
 
   const phases = await prisma.teamPhase.findMany({ where: { teamId }, orderBy: { order: 'asc' } })
-  const membership = await prisma.teamUserMembership.findFirst({ where: { teamId, userId: session.user.id, isActive: true }, select: { role: true } })
-  const canManage = (role === 'ADMIN') || (role === 'COACH' && !!membership) || membership?.role === 'ADMIN'
+  const membership = await prisma.teamUserMembership.findFirst({
+    where: { teamId, userId: session.user.id, isActive: true },
+    select: { role: true },
+  })
+  const canManage =
+    role === 'ADMIN' || (role === 'COACH' && !!membership) || membership?.role === 'ADMIN'
   return NextResponse.json({ teamId, phases, canManage })
 }
 
 export async function POST(request: Request) {
   const session = await auth()
-  if (!session?.user?.id) return unauthorized('No autorizado')
+  if (!session?.user?.id) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const role = (session.user as { role?: string }).role ?? 'ATHLETE'
 
-  const parsed = await parseJsonOrError(request)
-  if (!parsed.ok) return parsed.error
-  const body = parsed.data as any
+  const body = await request.json().catch(() => ({}))
   const { teamId: bodyTeamId, code, label, description, order } = body
 
   let teamId = bodyTeamId
@@ -57,15 +61,21 @@ export async function POST(request: Request) {
       select: { teamId: true },
       orderBy: { createdAt: 'asc' },
     })
-    if (ownMemberships.length === 0) return badRequest('No hay equipo asociado')
+    if (ownMemberships.length === 0)
+      return NextResponse.json({ error: 'No hay equipo asociado' }, { status: 400 })
     teamId = ownMemberships[0].teamId
   }
 
-  const membership = await prisma.teamUserMembership.findFirst({ where: { teamId, userId: session.user.id, isActive: true }, select: { role: true } })
-  const canManage = (role === 'ADMIN') || (role === 'COACH' && !!membership) || membership?.role === 'ADMIN'
-  if (!canManage) return forbidden('Sin acceso al equipo')
+  const membership = await prisma.teamUserMembership.findFirst({
+    where: { teamId, userId: session.user.id, isActive: true },
+    select: { role: true },
+  })
+  const canManage =
+    role === 'ADMIN' || (role === 'COACH' && !!membership) || membership?.role === 'ADMIN'
+  if (!canManage) return NextResponse.json({ error: 'Sin acceso al equipo' }, { status: 403 })
 
-  if (!label || !code) return badRequest('label y code son requeridos')
+  if (!label || !code)
+    return NextResponse.json({ error: 'label y code son requeridos' }, { status: 400 })
 
   try {
     const created = await prisma.teamPhase.create({
@@ -81,7 +91,7 @@ export async function POST(request: Request) {
     return NextResponse.json(created, { status: 201 })
   } catch (err) {
     console.error('[team/phases] create', err)
-    return serverError('Error creando fase')
+    return NextResponse.json({ error: 'Error creando fase' }, { status: 500 })
   }
 }
 
@@ -89,27 +99,38 @@ export async function PATCH(request: Request) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const role = (session.user as { role?: string }).role ?? 'ATHLETE'
-  if (role !== 'COACH' && role !== 'ADMIN') return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+  if (role !== 'COACH' && role !== 'ADMIN')
+    return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
 
-  const parsed = await parseJsonOrError(request)
-  if (!parsed.ok) return parsed.error
-  const body = parsed.data as any
+  const body = await request.json().catch(() => ({}))
   const { id, code, label, description, order } = body
-  if (!id) return badRequest('id es requerido')
+  if (!id) return NextResponse.json({ error: 'id es requerido' }, { status: 400 })
 
   const phase = await prisma.teamPhase.findUnique({ where: { id }, select: { teamId: true } })
-  if (!phase) return notFound('Fase no encontrada')
+  if (!phase) return NextResponse.json({ error: 'Fase no encontrada' }, { status: 404 })
 
-  const membership = await prisma.teamUserMembership.findFirst({ where: { teamId: phase.teamId, userId: session.user.id, isActive: true }, select: { role: true } })
-  const canManage = (role === 'ADMIN') || (role === 'COACH' && !!membership) || membership?.role === 'ADMIN'
-  if (!canManage) return forbidden('Sin acceso al equipo')
+  const membership = await prisma.teamUserMembership.findFirst({
+    where: { teamId: phase.teamId, userId: session.user.id, isActive: true },
+    select: { role: true },
+  })
+  const canManage =
+    role === 'ADMIN' || (role === 'COACH' && !!membership) || membership?.role === 'ADMIN'
+  if (!canManage) return NextResponse.json({ error: 'Sin acceso al equipo' }, { status: 403 })
 
   try {
-    const updated = await prisma.teamPhase.update({ where: { id }, data: { code: code ?? undefined, label: label ?? undefined, description: description ?? undefined, order: typeof order === 'number' ? order : undefined } })
+    const updated = await prisma.teamPhase.update({
+      where: { id },
+      data: {
+        code: code ?? undefined,
+        label: label ?? undefined,
+        description: description ?? undefined,
+        order: typeof order === 'number' ? order : undefined,
+      },
+    })
     return NextResponse.json(updated)
   } catch (err) {
     console.error('[team/phases] patch', err)
-    return serverError('Error actualizando fase')
+    return NextResponse.json({ error: 'Error actualizando fase' }, { status: 500 })
   }
 }
 
@@ -117,26 +138,29 @@ export async function DELETE(request: Request) {
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const role = (session.user as { role?: string }).role ?? 'ATHLETE'
-  if (role !== 'COACH' && role !== 'ADMIN') return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+  if (role !== 'COACH' && role !== 'ADMIN')
+    return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
 
-  const parsed = await parseJsonOrError(request)
-  if (!parsed.ok) return parsed.error
-  const body = parsed.data as any
+  const body = await request.json().catch(() => ({}))
   const { id } = body
-  if (!id) return badRequest('id es requerido')
+  if (!id) return NextResponse.json({ error: 'id es requerido' }, { status: 400 })
 
   const phase = await prisma.teamPhase.findUnique({ where: { id }, select: { teamId: true } })
-  if (!phase) return notFound('Fase no encontrada')
+  if (!phase) return NextResponse.json({ error: 'Fase no encontrada' }, { status: 404 })
 
-  const membership = await prisma.teamUserMembership.findFirst({ where: { teamId: phase.teamId, userId: session.user.id, isActive: true }, select: { role: true } })
-  const canManage = (role === 'ADMIN') || (role === 'COACH' && !!membership) || membership?.role === 'ADMIN'
-  if (!canManage) return forbidden('Sin acceso al equipo')
+  const membership = await prisma.teamUserMembership.findFirst({
+    where: { teamId: phase.teamId, userId: session.user.id, isActive: true },
+    select: { role: true },
+  })
+  const canManage =
+    role === 'ADMIN' || (role === 'COACH' && !!membership) || membership?.role === 'ADMIN'
+  if (!canManage) return NextResponse.json({ error: 'Sin acceso al equipo' }, { status: 403 })
 
   try {
     await prisma.teamPhase.delete({ where: { id } })
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('[team/phases] delete', err)
-    return serverError('Error eliminando fase')
+    return NextResponse.json({ error: 'Error eliminando fase' }, { status: 500 })
   }
 }

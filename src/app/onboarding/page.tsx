@@ -199,7 +199,9 @@ export default function OnboardingPage() {
       await new Promise((r) => setTimeout(r, 1500))
 
       // Recargar sesión desde API
-      const newSession = await apiFetch<{ user?: { emailVerified?: boolean | Date } }>('/api/auth/session')
+      const newSession = await apiFetch<{ user?: { emailVerified?: boolean | Date } }>(
+        '/api/auth/session'
+      )
       const isVerified = Boolean(newSession.user?.emailVerified)
       if (!isVerified) {
         setError('Tu email aún no ha sido verificado. Revisa tu bandeja de entrada.')
@@ -383,7 +385,7 @@ export default function OnboardingPage() {
               </div>
               <div className="space-y-2">
                 <p className="text-sm font-medium">Tu rol</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {(['COACH', 'ATHLETE'] as Role[]).map((r) => (
                     <button
                       key={r}
@@ -504,7 +506,7 @@ export default function OnboardingPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Objetivo principal</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {GOAL_OPTIONS.map((g) => (
                     <button
                       key={g.value}

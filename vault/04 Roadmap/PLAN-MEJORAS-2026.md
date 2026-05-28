@@ -498,7 +498,39 @@ Auditoría rápida → fixes prioritarios:
 | Lighthouse mobile               | ?   | >90                   |
 | Bugs P0 abiertos                | 6   | 0                     |
 | TODOs en código                 | ?   | <5                    |
-| Cobertura componentes UI        | 12  | 25+                   |
+
+---
+
+## 15. Estado actual - Mayo 2026
+
+### Completado
+
+- ✅ Mobile app con Capacitor (camera, filesystem, sqlite)
+- ✅ Video editor con Fabric.js + MediaPipe pose detection
+- ✅ RIR tracker con detección automática
+- ✅ Sync endpoint para datos offline
+- ✅ Optimización: eliminados 37 paquetes no usados
+- ✅ Sentry + Pino logging
+- ✅ Headers de seguridad + CSP
+- ✅ Validación env con @t3-oss/env-nextjs
+- ✅ Vistas móviles base en `src/app/mobile/`
+- ✅ Grids responsivos corregidos
+
+### En progreso
+
+- 🔄 Auditoría de planes (nutrición y entrenamiento) → `AUDITORIA-PLANES-NUTRICION-ENTRENAMIENTO.md`
+- 🔄 Periodización nutricional (weekNumber en MealFood)
+- 🔄 Progresión de cargas y deload automático
+
+### Pausado
+
+- ⏸️ Mobile: pendiente pruebas en Android
+
+### Pendiente
+
+- ⚠️ Warnings ESLint en scripts prisma/ (no críticos)
+- ⚠️ Lighthouse > 90 mobile
+  | Cobertura componentes UI | 12 | 25+ |
 
 ---
 

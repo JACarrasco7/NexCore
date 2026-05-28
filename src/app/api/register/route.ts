@@ -1,37 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
-import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { sendSms } from '@/lib/sms'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { Role, OtpType } from '@prisma/client'
 import { parseJsonOrError } from '@/lib/api/json-parser'
-
-const registerSchema = z
-  .object({
-    email: z.string().email().max(254),
-    password: z.string().min(8).max(128),
-    name: z.string().min(1).max(100),
-    phone: z.string().max(20).optional(),
-    role: z.enum(['ATHLETE', 'COACH']).optional().default('ATHLETE'),
-    verificationMethod: z.enum(['EMAIL', 'SMS']).optional().default('EMAIL'),
-  })
-  .refine(
-    (data) => {
-      // Si es COACH, teléfono es obligatorio
-      if (data.role === 'COACH' && !data.phone?.trim()) {
-        return false
-      }
-      // Si es ATHLETE + SMS, teléfono es obligatorio
-      if (data.role === 'ATHLETE' && data.verificationMethod === 'SMS' && !data.phone?.trim()) {
-        return false
-      }
-      return true
-    },
-    { message: 'El teléfono es requerido', path: ['phone'] }
-  )
+import { registerSchema } from '@/lib/validators'
 
 const TOKEN_TTL_HOURS = 24
 
@@ -53,8 +29,8 @@ export async function POST(request: NextRequest) {
 
   const result = await parseJsonOrError(request)
   if (!result.ok) return result.error
-  const raw = result.data as any // Already validated by parseJsonOrError
-  const parsed = registerSchema.safeParse(raw)
+
+  const parsed = registerSchema.safeParse(result.data)
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? 'Datos inválidos' },

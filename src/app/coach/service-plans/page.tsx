@@ -114,7 +114,7 @@ function NewPlanForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () 
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div>
           <label className="text-foreground/50 mb-1 block text-xs">Precio (€)</label>
           <input

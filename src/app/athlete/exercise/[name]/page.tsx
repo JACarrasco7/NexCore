@@ -12,11 +12,14 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+import { FormProvider, useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { useAthleteMe } from '@/lib/use-athlete-me'
 import { useSessionLogs } from '@/lib/store'
+import { FormField } from '@/components/ui/form-field'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { ExerciseNote, SessionLog } from '@/lib/domain'
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ExerciseInfo {
   found: boolean
@@ -26,16 +29,18 @@ interface ExerciseInfo {
   muscles: string[]
   musclesSecondary: string[]
   videoUrls: string[]
+  imageUrls?: string[]
+  mainImageUrl?: string
+  equipment?: string
+  difficulty?: string
 }
-
 interface ProgressPoint {
   label: string
   maxKg: number
-  maxVol: number // kg × reps (mejor serie)
-  totalVol: number // suma kcal volumen total sesión
+  maxVol: number
+  totalVol: number
   sets: number
 }
-
 interface PersonalRecord {
   maxKg: number
   maxKgDate: string
@@ -45,23 +50,20 @@ interface PersonalRecord {
   lastDate: string
 }
 
-// ─── Muscle Tag ───────────────────────────────────────────────────────────────
+const noteFormSchema = z.object({ content: z.string().min(1, 'Escribe una nota').max(2000) })
+type NoteFormValues = z.infer<typeof noteFormSchema>
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function MuscleTag({ name, secondary }: { name: string; secondary?: boolean }) {
   return (
     <span
-      className={`rounded-full border px-3 py-1 text-xs font-medium ${
-        secondary
-          ? 'border-line bg-surface-strong text-foreground/60'
-          : 'border-accent/30 bg-accent/10 text-accent'
-      }`}
+      className={`rounded-full border px-3 py-1 text-xs font-medium ${secondary ? 'border-line bg-surface-strong text-foreground/60' : 'border-accent/30 bg-accent/10 text-accent'}`}
     >
       {name}
     </span>
   )
 }
-
-// ─── PR Card ─────────────────────────────────────────────────────────────────
 
 function PRCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -70,6 +72,54 @@ function PRCard({ label, value, sub }: { label: string; value: string; sub?: str
       <span className="text-2xl font-bold tabular-nums">{value}</span>
       {sub && <span className="text-foreground/40 text-xs">{sub}</span>}
     </div>
+  )
+}
+
+function Collapse({
+  title,
+  subtitle,
+  defaultOpen,
+  badge,
+  children,
+}: {
+  title: string
+  subtitle?: string
+  defaultOpen?: boolean
+  badge?: string
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen ?? false)
+  return (
+    <section className="border-line bg-surface overflow-hidden rounded-4xl border">
+      <button
+        onClick={() => setOpen(!open)}
+        className="hover:bg-surface-strong flex w-full items-center justify-between gap-4 p-5 text-left transition"
+      >
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold">{title}</h2>
+            {badge && (
+              <span className="bg-accent/10 text-accent rounded-full px-2 py-0.5 text-[10px] font-semibold">
+                {badge}
+              </span>
+            )}
+          </div>
+          {subtitle && <p className="text-foreground/50 mt-0.5 text-xs">{subtitle}</p>}
+        </div>
+        <span
+          className={`text-foreground/40 text-sm transition-transform ${open ? 'rotate-180' : ''}`}
+        >
+          ▼
+        </span>
+      </button>
+      <div
+        className={`grid transition-all duration-300 ease-in-out ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+      >
+        <div className="overflow-hidden">
+          <div className="px-5 pb-5">{children}</div>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -82,20 +132,19 @@ export default function ExerciseDetailPage() {
 
   const { athlete, loading: loadingAthlete } = useAthleteMe()
   const { logs, loading: loadingLogs } = useSessionLogs(athlete?.id)
-
-  // WGER exercise info
   const [info, setInfo] = useState<ExerciseInfo | null>(null)
   const [loadingInfo, setLoadingInfo] = useState(true)
-
-  // Notes
-  const [notes, setNotes] = useState<ExerciseNote[]>([])
-  const [noteText, setNoteText] = useState('')
-  const [savingNote, setSavingNote] = useState(false)
-
-  // Video player
   const [videoIdx, setVideoIdx] = useState(0)
+  const [noteSaving, setNoteSaving] = useState(false)
+  const [coachNotes, setCoachNotes] = useState<ExerciseNote[]>([])
+  const [athleteNotes, setAthleteNotes] = useState<ExerciseNote[]>([])
+  const [noteTab, setNoteTab] = useState<'mine' | 'coach'>('mine')
 
-  // ── Load WGER info ──────────────────────────────────────────────────────
+  const noteMethods = useForm<NoteFormValues>({
+    resolver: zodResolver(noteFormSchema),
+    defaultValues: { content: '' },
+  })
+
   useEffect(() => {
     if (!exerciseName) return
     setLoadingInfo(true)
@@ -106,339 +155,374 @@ export default function ExerciseDetailPage() {
       .finally(() => setLoadingInfo(false))
   }, [exerciseName])
 
-  // ── Load notes ──────────────────────────────────────────────────────────
   const loadNotes = useCallback(async () => {
     if (!athlete?.id) return
     const res = await fetch(
       `/api/exercise-notes?athleteId=${athlete.id}&exercise=${encodeURIComponent(exerciseName)}`
     )
-    if (res.ok) setNotes(await res.json())
+    if (res.ok) {
+      const all: ExerciseNote[] = await res.json()
+      setAthleteNotes(all.filter((n) => (n as any).author !== 'COACH'))
+      setCoachNotes(all.filter((n) => (n as any).author === 'COACH'))
+    }
   }, [athlete?.id, exerciseName])
 
   useEffect(() => {
     loadNotes()
   }, [loadNotes])
 
-  // ── Derive progression data from session logs ────────────────────────────
-  const { progressPoints, pr } = deriveProgress(logs, exerciseName)
-
-  // ── Save note ────────────────────────────────────────────────────────────
-  async function handleSaveNote() {
-    if (!athlete?.id || !noteText.trim()) return
-    setSavingNote(true)
+  async function handleSaveNote(data: NoteFormValues) {
+    if (!athlete?.id) return
+    setNoteSaving(true)
     await fetch('/api/exercise-notes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         athleteId: athlete.id,
         exerciseName,
-        content: noteText.trim(),
+        content: data.content.trim(),
+        author: 'ATHLETE',
       }),
     })
-    setNoteText('')
+    noteMethods.reset({ content: '' })
     await loadNotes()
-    setSavingNote(false)
+    setNoteSaving(false)
   }
 
-  // ── YouTube fallback search URL ──────────────────────────────────────────
-  const ytSearch = `https://www.youtube.com/results?search_query=${encodeURIComponent(exerciseName + ' exercise tutorial form')}`
-
+  const { progressPoints, pr } = deriveProgress(logs, exerciseName)
   const videos = info?.videoUrls ?? []
   const currentVideo = videos[videoIdx]
+  const ytSearch = `https://www.youtube.com/results?search_query=${encodeURIComponent(exerciseName + ' exercise tutorial form')}`
 
   if (loadingAthlete || loadingLogs) {
     return (
       <main className="mx-auto flex w-full max-w-370 flex-1 flex-col gap-6 px-6 py-8 md:px-10 lg:px-12">
-        <div className="bg-surface-strong h-8 w-48 animate-pulse rounded-2xl" />
-        <div className="bg-surface-strong h-64 animate-pulse rounded-4xl" />
-        <div className="bg-surface-strong h-40 animate-pulse rounded-4xl" />
+        <Skeleton className="h-8 w-48 rounded-2xl" />
+        <Skeleton className="h-64 rounded-4xl" />
       </main>
     )
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-370 flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
-      {/* Back + title */}
+    <main className="mx-auto flex w-full max-w-370 flex-1 flex-col gap-5 px-6 py-8 md:px-10 lg:px-12">
+      {/* Header */}
       <div className="flex items-start gap-3">
         <button
           onClick={() => router.back()}
           className="border-line text-foreground/60 hover:text-foreground mt-0.5 shrink-0 rounded-full border px-3 py-1.5 text-xs transition"
         >
-          ← Volver
+          ←
         </button>
-        <div>
+        <div className="min-w-0">
           <p className="text-foreground/40 text-xs font-medium tracking-widest uppercase">
             {info?.category ?? 'Ejercicio'}
           </p>
-          <h1 className="text-2xl leading-tight font-bold">{exerciseName}</h1>
+          <h1 className="truncate text-2xl leading-tight font-bold">{exerciseName}</h1>
+          <div className="mt-1.5 flex flex-wrap gap-2">
+            {(info?.muscles ?? []).map((m) => (
+              <MuscleTag key={m} name={m} />
+            ))}
+            {(info?.musclesSecondary ?? []).slice(0, 2).map((m) => (
+              <MuscleTag key={m} name={m} secondary />
+            ))}
+            {info?.equipment && (
+              <span className="bg-surface-strong text-foreground/50 border-line rounded-full border px-2.5 py-0.5 text-xs">
+                {info.equipment}
+              </span>
+            )}
+            {info?.difficulty && (
+              <span className="bg-surface-strong text-foreground/50 border-line rounded-full border px-2.5 py-0.5 text-xs capitalize">
+                {info.difficulty}
+              </span>
+            )}
+          </div>
         </div>
+        <Link
+          href="/athlete/training-log"
+          className="bg-accent hover:bg-accent-strong ml-auto shrink-0 rounded-full px-4 py-2 text-xs font-semibold text-white transition"
+        >
+          Registrar sesión →
+        </Link>
       </div>
 
-      {/* Main 2-col layout */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        {/* ── LEFT COLUMN ─────────────────────────────────────────────── */}
-        <div className="flex flex-col gap-6">
-          {/* Progression chart */}
-          <section className="border-line bg-surface rounded-4xl border p-6 shadow-[0_16px_48px_rgba(0,0,0,0.06)]">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">Progresión de carga</h2>
-                <p className="text-foreground/50 text-xs">Máximo por sesión</p>
-              </div>
-              {pr && (
-                <span className="border-success/30 bg-success/10 text-success rounded-full border px-3 py-1 text-xs font-semibold">
-                  PR {pr.maxKg} kg
-                </span>
-              )}
+      {/* Always visible: Progresión + Demo lado a lado */}
+      <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+        {/* Progresión */}
+        <section className="border-line bg-surface rounded-4xl border p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Progresión de carga</h2>
+              <p className="text-foreground/50 text-xs">Máximo por sesión (kg)</p>
             </div>
-
-            {progressPoints.length < 2 ? (
-              <div className="border-line bg-surface-strong flex h-40 items-center justify-center rounded-3xl border border-dashed">
-                <p className="text-foreground/40 text-sm">
-                  {progressPoints.length === 0
-                    ? 'Sin registros todavía — empieza a entrenar para ver tu progresión'
-                    : 'Registra al menos 2 sesiones para ver la gráfica'}
-                </p>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart
-                  data={progressPoints}
-                  margin={{ top: 4, right: 4, bottom: 0, left: -20 }}
-                >
-                  <defs>
-                    <linearGradient id="gradKg" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fontSize: 10, fill: 'var(--foreground)', opacity: 0.4 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 10, fill: 'var(--foreground)', opacity: 0.4 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: 'var(--surface)',
-                      border: '1px solid var(--line)',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                    }}
-                    formatter={(v) => [`${v} kg`, 'Máx carga']}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="maxKg"
-                    stroke="var(--accent)"
-                    strokeWidth={2}
-                    fill="url(#gradKg)"
-                    dot={{ r: 3, fill: 'var(--accent)' }}
-                    activeDot={{ r: 5 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+            {pr && (
+              <span className="border-success/30 bg-success/10 text-success rounded-full border px-3 py-1 text-xs font-semibold">
+                PR {pr.maxKg} kg
+              </span>
             )}
-          </section>
-
-          {/* Personal records */}
+          </div>
+          {progressPoints.length < 2 ? (
+            <div className="border-line bg-surface-strong flex h-32 items-center justify-center rounded-3xl border border-dashed">
+              <p className="text-foreground/40 text-sm">
+                {progressPoints.length === 0
+                  ? 'Sin datos aún — registra sesiones para ver tu progresión'
+                  : 'Necesitas al menos 2 sesiones'}
+              </p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={progressPoints} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                <defs>
+                  <linearGradient id="gradKg2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 10, fill: 'var(--foreground)', opacity: 0.4 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: 'var(--foreground)', opacity: 0.4 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: 'var(--surface)',
+                    border: '1px solid var(--line)',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="maxKg"
+                  stroke="var(--accent)"
+                  strokeWidth={2}
+                  fill="url(#gradKg2)"
+                  dot={{ r: 3, fill: 'var(--accent)' }}
+                  activeDot={{ r: 5 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
           {pr && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <PRCard label="Máximo peso" value={`${pr.maxKg} kg`} sub={formatDate(pr.maxKgDate)} />
-              <PRCard label="Mejor volumen" value={`${pr.maxVol}`} sub="kg × reps (serie)" />
-              <PRCard label="Sesiones" value={String(pr.totalSessions)} sub="registradas" />
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <PRCard label="Máx peso" value={`${pr.maxKg}`} sub="kg" />
+              <PRCard label="Mejor vol" value={`${pr.maxVol}`} sub="kg×rep" />
+              <PRCard label="Sesiones" value={String(pr.totalSessions)} sub="total" />
               <PRCard
-                label="Última vez"
+                label="Última"
                 value={formatDate(pr.lastDate)}
-                sub={pr.lastDate ? `hace ${daysSince(pr.lastDate)}d` : ''}
+                sub={pr.lastDate ? `hace ${daysSince(pr.lastDate)}d` : '—'}
               />
             </div>
           )}
+        </section>
 
-          {/* Historial de series recientes */}
-          {progressPoints.length > 0 && (
-            <section className="border-line bg-surface rounded-4xl border p-6 shadow-[0_16px_48px_rgba(0,0,0,0.06)]">
-              <h2 className="mb-4 text-lg font-semibold">Últimas sesiones</h2>
-              <div className="space-y-3">
-                {getRecentSets(logs, exerciseName)
-                  .slice(0, 5)
-                  .map((session) => (
-                    <div
-                      key={session.sessionLogId}
-                      className="border-line bg-surface-strong rounded-3xl border p-4"
-                    >
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className="text-sm font-semibold">{session.sessionName}</span>
-                        <span className="text-foreground/40 text-xs">
-                          {formatDate(session.date)}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {session.sets.map((s, i) => (
-                          <span
-                            key={i}
-                            className="border-line bg-surface rounded-2xl border px-3 py-1 font-mono text-xs"
-                          >
-                            {s.loadKg}kg × {s.reps}
-                            {s.rir !== undefined ? ` RIR${s.rir}` : ''}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </section>
-          )}
-
-          {/* Notes / comments */}
-          <section className="border-line bg-surface rounded-4xl border p-6 shadow-[0_16px_48px_rgba(0,0,0,0.06)]">
-            <h2 className="mb-1 text-lg font-semibold">Notas del ejercicio</h2>
-            <p className="text-foreground/50 mb-4 text-xs">
-              Apunta sensaciones, ajustes de agarre, errores técnicos o cualquier cue personal.
-            </p>
-
-            <div className="space-y-3">
-              <textarea
-                rows={3}
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                placeholder="Ej: «Con agarre neutro siento más el pectoral. La semana pasada me costó la última serie...»"
-                className="border-line bg-surface-strong focus:border-accent w-full resize-none rounded-2xl border px-4 py-3 text-sm transition outline-none"
-              />
-              <div className="flex justify-end">
-                <button
-                  onClick={handleSaveNote}
-                  disabled={savingNote || !noteText.trim()}
-                  className="bg-accent hover:bg-accent-strong rounded-full px-5 py-2 text-sm font-semibold text-white transition disabled:opacity-40"
-                >
-                  {savingNote ? 'Guardando…' : 'Guardar nota'}
-                </button>
-              </div>
-            </div>
-
-            {notes.length > 0 && (
-              <div className="border-line mt-5 space-y-3 border-t pt-4">
-                {notes.map((n) => (
-                  <div key={n.id} className="border-line bg-surface-strong rounded-3xl border p-4">
-                    <p className="text-sm leading-relaxed">{n.content}</p>
-                    <p className="text-foreground/40 mt-2 text-xs">{formatDate(n.createdAt)}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
-
-        {/* ── RIGHT COLUMN ────────────────────────────────────────────── */}
-        <div className="flex flex-col gap-6">
-          {/* Video demo */}
-          <section className="border-line bg-surface rounded-4xl border p-6 shadow-[0_16px_48px_rgba(0,0,0,0.06)]">
-            <h2 className="mb-3 text-lg font-semibold">Demo técnico</h2>
-
+        {/* Demo + imagen */}
+        <div className="space-y-5">
+          <section className="border-line bg-surface rounded-4xl border p-5">
+            <h2 className="mb-3 text-sm font-semibold">Demo técnico</h2>
             {loadingInfo ? (
-              <div className="bg-surface-strong h-48 animate-pulse rounded-3xl" />
+              <Skeleton className="h-40 rounded-3xl" />
             ) : currentVideo ? (
               <div className="border-line overflow-hidden rounded-3xl border bg-black">
-                <video src={currentVideo} controls loop playsInline className="w-full" poster="" />
+                <video src={currentVideo} controls loop playsInline className="w-full" />
                 {videos.length > 1 && (
                   <div className="bg-surface-strong flex gap-2 p-2">
                     {videos.map((_, i) => (
                       <button
                         key={i}
                         onClick={() => setVideoIdx(i)}
-                        className={`h-2 flex-1 rounded-full transition ${
-                          i === videoIdx ? 'bg-accent' : 'bg-line'
-                        }`}
+                        className={`h-1.5 flex-1 rounded-full transition ${i === videoIdx ? 'bg-accent' : 'bg-line'}`}
                       />
                     ))}
                   </div>
                 )}
               </div>
             ) : (
-              <div className="border-line bg-surface-strong flex flex-col items-center gap-3 rounded-3xl border border-dashed py-8 text-center">
-                <span className="text-3xl">🎬</span>
-                <p className="text-foreground/50 text-sm">
-                  No hay vídeo disponible en la base de datos
+              <div className="border-line bg-surface-strong flex flex-col items-center gap-2 rounded-3xl border border-dashed py-8">
+                <span className="text-2xl">🎬</span>
+                <p className="text-foreground/50 text-center text-xs">
+                  Sin vídeo en la base de datos
                 </p>
                 <a
                   href={ytSearch}
                   target="_blank"
                   rel="noreferrer"
-                  className="border-accent/30 text-accent hover:bg-accent/10 rounded-full border px-4 py-1.5 text-xs font-medium transition"
+                  className="border-accent/30 text-accent hover:bg-accent/10 rounded-full border px-3 py-1 text-[11px] font-medium transition"
                 >
-                  Buscar en YouTube →
+                  YouTube →
                 </a>
               </div>
             )}
           </section>
-
-          {/* Muscles */}
-          <section className="border-line bg-surface rounded-4xl border p-6 shadow-[0_16px_48px_rgba(0,0,0,0.06)]">
-            <h2 className="mb-3 text-lg font-semibold">Músculos</h2>
-
-            {loadingInfo ? (
-              <div className="space-y-2">
-                <div className="bg-surface-strong h-6 w-32 animate-pulse rounded-full" />
-                <div className="bg-surface-strong h-6 w-24 animate-pulse rounded-full" />
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {(info?.muscles?.length ?? 0) > 0 && (
-                  <div>
-                    <p className="text-foreground/40 mb-1.5 text-xs font-semibold tracking-widest uppercase">
-                      Principal
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {info!.muscles.map((m) => (
-                        <MuscleTag key={m} name={m} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {(info?.musclesSecondary?.length ?? 0) > 0 && (
-                  <div>
-                    <p className="text-foreground/40 mb-1.5 text-xs font-semibold tracking-widest uppercase">
-                      Secundario
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {info!.musclesSecondary.map((m) => (
-                        <MuscleTag key={m} name={m} secondary />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {!info?.found && !loadingInfo && (
-                  <p className="text-foreground/40 text-sm">
-                    No se encontraron datos en la base de datos WGER para este ejercicio.
-                  </p>
-                )}
-              </div>
-            )}
-          </section>
-
-          {/* Description */}
-          {info?.description && (
-            <section className="border-line bg-surface rounded-4xl border p-6 shadow-[0_16px_48px_rgba(0,0,0,0.06)]">
-              <h2 className="mb-3 text-lg font-semibold">Descripción</h2>
-              <p className="text-foreground/70 text-sm leading-relaxed">{info.description}</p>
+          {info?.mainImageUrl && (
+            <section className="border-line bg-surface rounded-4xl border p-5">
+              <img
+                src={info.mainImageUrl}
+                alt={exerciseName}
+                className="border-line w-full rounded-3xl border bg-black object-contain"
+                style={{ maxHeight: 180 }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
             </section>
           )}
-
-          {/* CTA: go to training log */}
-          <Link
-            href={`/athlete/training-log`}
-            className="bg-accent hover:bg-accent-strong flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white transition"
-          >
-            Ir a registrar sesión →
-          </Link>
         </div>
       </div>
+
+      {/* Collapsible: Últimas sesiones */}
+      {progressPoints.length > 0 && (
+        <Collapse
+          title="Últimas sesiones"
+          subtitle={`${getRecentSets(logs, exerciseName).length} registros recientes`}
+        >
+          <div className="space-y-2">
+            {getRecentSets(logs, exerciseName)
+              .slice(0, 8)
+              .map((session) => (
+                <div
+                  key={session.sessionLogId}
+                  className="border-line bg-surface-strong flex items-center gap-3 rounded-2xl border p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold">{session.sessionName}</p>
+                    <p className="text-foreground/40 text-[10px]">{formatDate(session.date)}</p>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-1.5">
+                    {session.sets.map((s, i) => (
+                      <span
+                        key={i}
+                        className="border-line bg-surface rounded-xl border px-2 py-0.5 font-mono text-[11px]"
+                      >
+                        {s.loadKg}kg × {s.reps}
+                        {s.rir !== undefined ? ` @${s.rir}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </Collapse>
+      )}
+
+      {/* Collapsible: Notas */}
+      <Collapse
+        title="Notas"
+        subtitle="Tus notas y las de tu coach"
+        badge={coachNotes.length > 0 ? `${coachNotes.length} coach` : undefined}
+        defaultOpen={coachNotes.length > 0}
+      >
+        <div className="mb-4 flex gap-2">
+          <button
+            onClick={() => setNoteTab('mine')}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${noteTab === 'mine' ? 'bg-accent/10 text-accent' : 'text-foreground/50 hover:text-foreground'}`}
+          >
+            Mis notas
+          </button>
+          <button
+            onClick={() => setNoteTab('coach')}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${noteTab === 'coach' ? 'bg-accent/10 text-accent' : 'text-foreground/50 hover:text-foreground'}`}
+          >
+            Notas del coach {coachNotes.length > 0 && `(${coachNotes.length})`}
+          </button>
+        </div>
+
+        {noteTab === 'mine' ? (
+          <div className="space-y-3">
+            <FormProvider {...noteMethods}>
+              <form onSubmit={noteMethods.handleSubmit(handleSaveNote)} className="flex gap-2">
+                <FormField
+                  name="content"
+                  type="textarea"
+                  placeholder="Apunta sensaciones, ajustes, cues..."
+                  className="flex-1"
+                />
+                <button
+                  type="submit"
+                  disabled={noteSaving}
+                  className="bg-accent hover:bg-accent-strong shrink-0 self-end rounded-full px-4 py-2 text-xs font-semibold text-white transition disabled:opacity-40"
+                >
+                  {noteSaving ? '...' : 'Guardar'}
+                </button>
+              </form>
+            </FormProvider>
+            {athleteNotes.map((n) => (
+              <div key={n.id} className="border-line bg-surface-strong rounded-2xl border p-3">
+                <p className="text-sm">{n.content}</p>
+                <p className="text-foreground/40 mt-1.5 text-[10px]">{formatDate(n.createdAt)}</p>
+              </div>
+            ))}
+          </div>
+        ) : coachNotes.length === 0 ? (
+          <div className="border-line bg-surface-strong flex flex-col items-center gap-2 rounded-3xl border border-dashed py-8">
+            <span className="text-xl">📝</span>
+            <p className="text-foreground/40 text-xs">
+              Tu coach aún no ha dejado notas para este ejercicio
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {coachNotes.map((n) => (
+              <div key={n.id} className="border-accent/20 bg-accent/5 rounded-2xl border p-3">
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span className="border-accent/30 bg-accent/10 text-accent rounded-full border px-2 py-0.5 text-[10px] font-semibold">
+                    Coach
+                  </span>
+                  <span className="text-foreground/40 text-[10px]">{formatDate(n.createdAt)}</span>
+                </div>
+                <p className="text-sm">{n.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Collapse>
+
+      {/* Collapsible: Descripción */}
+      {(info?.description || (info?.muscles?.length ?? 0) > 0) && (
+        <Collapse
+          title="Descripción y músculos"
+          subtitle={info?.equipment ? `Equipo: ${info.equipment}` : undefined}
+        >
+          <div className="space-y-4">
+            {info?.description && (
+              <p className="text-foreground/70 text-sm leading-relaxed">{info.description}</p>
+            )}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {(info?.muscles?.length ?? 0) > 0 && (
+                <div>
+                  <p className="text-foreground/40 mb-1.5 text-[10px] font-semibold tracking-widest uppercase">
+                    Principales
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {info!.muscles.map((m) => (
+                      <MuscleTag key={m} name={m} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(info?.musclesSecondary?.length ?? 0) > 0 && (
+                <div>
+                  <p className="text-foreground/40 mb-1.5 text-[10px] font-semibold tracking-widest uppercase">
+                    Secundarios
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {info!.musclesSecondary.map((m) => (
+                      <MuscleTag key={m} name={m} secondary />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </Collapse>
+      )}
     </main>
   )
 }
@@ -450,13 +534,10 @@ function deriveProgress(
   exerciseName: string
 ): { progressPoints: ProgressPoint[]; pr: PersonalRecord | null } {
   const nameLow = exerciseName.toLowerCase()
-
-  // Agrupar por fecha (día) — tomar el máximo de esa sesión
   const byDay: Record<
     string,
     { maxKg: number; maxVol: number; totalVol: number; sets: number; date: string }
   > = {}
-
   for (const log of logs) {
     const relevant = log.sets.filter(
       (s) =>
@@ -464,12 +545,8 @@ function deriveProgress(
         nameLow.includes(s.exercise.toLowerCase().split(' ')[0])
     )
     if (relevant.length === 0) continue
-
     const day = log.date.slice(0, 10)
-    if (!byDay[day]) {
-      byDay[day] = { maxKg: 0, maxVol: 0, totalVol: 0, sets: 0, date: log.date }
-    }
-
+    if (!byDay[day]) byDay[day] = { maxKg: 0, maxVol: 0, totalVol: 0, sets: 0, date: log.date }
     for (const s of relevant) {
       const vol = s.loadKg * s.reps
       if (s.loadKg > byDay[day].maxKg) byDay[day].maxKg = s.loadKg
@@ -478,13 +555,10 @@ function deriveProgress(
       byDay[day].sets++
     }
   }
-
   const sorted = Object.entries(byDay)
     .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-12) // últimas 12 sesiones
-
+    .slice(-12)
   if (sorted.length === 0) return { progressPoints: [], pr: null }
-
   const progressPoints: ProgressPoint[] = sorted.map(([day, v]) => ({
     label: new Date(day + 'T12:00:00').toLocaleDateString('es-ES', {
       day: 'numeric',
@@ -495,23 +569,21 @@ function deriveProgress(
     totalVol: Math.round(v.totalVol),
     sets: v.sets,
   }))
-
-  // PR global
   const allDays = Object.values(byDay)
   const maxKgEntry = allDays.reduce((a, b) => (b.maxKg > a.maxKg ? b : a))
   const maxVolEntry = allDays.reduce((a, b) => (b.maxVol > a.maxVol ? b : a))
   const lastEntry = Object.entries(byDay).sort(([a], [b]) => b.localeCompare(a))[0]
-
-  const pr: PersonalRecord = {
-    maxKg: maxKgEntry.maxKg,
-    maxKgDate: maxKgEntry.date,
-    maxVol: Math.round(maxVolEntry.maxVol),
-    maxVolDate: maxVolEntry.date,
-    totalSessions: Object.keys(byDay).length,
-    lastDate: lastEntry ? lastEntry[1].date : '',
+  return {
+    progressPoints,
+    pr: {
+      maxKg: maxKgEntry.maxKg,
+      maxKgDate: maxKgEntry.date,
+      maxVol: Math.round(maxVolEntry.maxVol),
+      maxVolDate: maxVolEntry.date,
+      totalSessions: Object.keys(byDay).length,
+      lastDate: lastEntry ? lastEntry[1].date : '',
+    },
   }
-
-  return { progressPoints, pr }
 }
 
 function getRecentSets(logs: SessionLog[], exerciseName: string) {
@@ -525,7 +597,7 @@ function getRecentSets(logs: SessionLog[], exerciseName: string) {
       )
     )
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5)
+    .slice(0, 8)
     .map((l) => ({
       sessionLogId: l.id,
       sessionName: l.sessionName,
@@ -548,7 +620,6 @@ function formatDate(iso: string) {
     year: 'numeric',
   })
 }
-
 function daysSince(iso: string) {
   if (!iso) return 0
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)

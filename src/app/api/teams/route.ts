@@ -3,7 +3,14 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
 import { checkRateLimit, getClientIp, getRateLimitKey } from '@/lib/rate-limit'
 import { parseJsonOrError } from '@/lib/api/json-parser'
-import { badRequest, unauthorized, forbidden, tooManyRequests, serverError } from '@/lib/api/error-response'
+import {
+  badRequest,
+  unauthorized,
+  forbidden,
+  tooManyRequests,
+  serverError,
+} from '@/lib/api/error-response'
+import { teamCreateSchema } from '@/lib/validators'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,23 +82,12 @@ export async function POST(request: Request) {
 
   const parsed = await parseJsonOrError(request)
   if (!parsed.ok) return parsed.error
-  const body = parsed.data as any
-  const { name, slug } = body
 
-  if (!name || typeof name !== 'string' || name.trim().length === 0) {
-    return badRequest('name es requerido y debe ser un string no vacío')
+  const validated = teamCreateSchema.safeParse(parsed.data)
+  if (!validated.success) {
+    return badRequest(validated.error.issues[0].message)
   }
-
-  const trimmedName = name.trim()
-  const trimmedSlug = slug ? String(slug).trim().toLowerCase() : null
-
-  // Validar slug si se proporciona
-  if (trimmedSlug && !/^[a-z0-9-]+$/.test(trimmedSlug)) {
-    return NextResponse.json(
-      { error: 'slug debe contener solo letras minúsculas, números y guiones' },
-      { status: 400 }
-    )
-  }
+  const { name, slug } = validated.data
 
   try {
     // Crear equipo en transacción
@@ -99,8 +95,8 @@ export async function POST(request: Request) {
       // Crear team
       const newTeam = await tx.team.create({
         data: {
-          name: trimmedName,
-          slug: trimmedSlug,
+          name,
+          slug,
         },
       })
 

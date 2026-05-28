@@ -16,6 +16,15 @@
 - **Fase 2.5 completada**: auth con roles, BD real, build limpio 16 rutas
 - **Pendiente**: conectar sesión autenticada al flujo de atleta/coach
 
+### App Móvil (Capacitor) - Implementado
+
+- Cámara con grabación y guardado local
+- Editor de video con anotaciones (líneas, texto)
+- Detección de pose con MediaPipe (ROM, ángulos)
+- Registro RIR manual y automático
+- Sync offline con backend
+- Export PDF de métricas
+
 ## Resumen ejecutivo
 
 NEXUM nace para sustituir el stack roto de muchos coaches premium: Drive + Excel + WhatsApp + videos sueltos. El objetivo no es crear otra app fitness genérica, sino una capa operativa boutique para coaches tipo Natural Twins, donde el atleta ejecuta y el coach decide.

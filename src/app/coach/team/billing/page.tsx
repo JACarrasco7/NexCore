@@ -287,7 +287,7 @@ function TeamBillingContent() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-foreground/60 mb-2 block text-sm font-medium">
                   Precio *
@@ -322,7 +322,7 @@ function TeamBillingContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-foreground/60 mb-2 block text-sm font-medium">
                   Ciclo de facturación *

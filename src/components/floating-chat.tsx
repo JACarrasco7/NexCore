@@ -67,7 +67,7 @@ export function FloatingChat({ unread = 0 }: { unread?: number }) {
     if (!open) return
     if (role === 'COACH' || role === 'ADMIN') {
       apiFetch('/api/coach/inbox')
-        .then((d: any) => setInbox(Array.isArray(d) ? d : d?.conversations ?? []))
+        .then((d: any) => setInbox(Array.isArray(d) ? d : (d?.conversations ?? [])))
         .catch(() => {})
     } else if (role === 'ATHLETE') {
       if (coachInfo) return

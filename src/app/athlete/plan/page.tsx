@@ -26,9 +26,11 @@ const TECH_COLORS: Record<string, string> = {
 function PlanCard({
   plan,
   loggedSessionIds,
+  onToggleSession,
 }: {
   plan: TrainingPlan
   loggedSessionIds: Set<string>
+  onToggleSession?: (sessionId: string, done: boolean) => void
 }) {
   const [open, setOpen] = useState(false)
 
@@ -40,9 +42,19 @@ function PlanCard({
         className="hover:bg-accent-soft flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition"
       >
         <div>
-          <p className="text-foreground font-bold">{plan.title}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-foreground font-bold">{plan.title}</p>
+            {plan.deloadWeek && (
+              <span
+                className="bg-warning/20 text-warning rounded-full px-2 py-0.5 text-xs font-semibold"
+                title={`Semana ${plan.deloadWeek} es deload automático`}
+              >
+                DELOAD
+              </span>
+            )}
+          </div>
           <p className="text-foreground/50 mt-0.5 text-xs">
-            {plan.weekLabel} · {plan.sessions.length} sesiones
+            {plan.weeksCount} semanas · {plan.sessions.length} sesiones
           </p>
         </div>
         <span className="text-foreground/40 shrink-0">{open ? '▲' : '▼'}</span>
@@ -60,6 +72,16 @@ function PlanCard({
                   }`}
                 >
                   <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={done}
+                      onChange={(e) => {
+                        e.stopPropagation()
+                        onToggleSession?.(session.id, e.target.checked)
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="border-line accent-accent h-4 w-4 rounded"
+                    />
                     {done && <span className="text-success text-base">✓</span>}
                     <div>
                       <span className="font-semibold">{session.name}</span>
@@ -149,6 +171,12 @@ function PlanCard({
                             📈 {ex.progressionNote}
                           </div>
                         )}
+                        {ex.loadKg && (
+                          <div className="border-accent/20 bg-accent-soft rounded-xl border px-3 py-2 text-xs">
+                            💡 Última vez: {ex.loadKg} kg · Sugerencia: {ex.loadKg + 2.5} kg si
+                            completaste todas las reps
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -165,7 +193,7 @@ function PlanCard({
 export default function MyPlanPage() {
   const { athlete, loading, notFound } = useAthleteMe()
   const { plans, loading: loadingPlans } = useTrainingPlans(athlete?.id)
-  const { logs } = useSessionLogs(athlete?.id)
+  const { logs, toggleSessionCompletion } = useSessionLogs(athlete?.id)
 
   const loggedSessionIds = new Set(logs.map((l) => l.sessionId))
 
@@ -174,6 +202,15 @@ export default function MyPlanPage() {
     (a, b) => parseInt(b.id.slice(-5), 36) - parseInt(a.id.slice(-5), 36)
   )
   const activePlan = sortedPlans[0] ?? null
+
+  // Toggle session completion
+  const handleToggleSession = async (sessionId: string, done: boolean) => {
+    try {
+      await toggleSessionCompletion(sessionId, done)
+    } catch (err) {
+      console.error('Toggle failed:', err)
+    }
+  }
 
   if (loading || loadingPlans) {
     return (
@@ -249,7 +286,11 @@ export default function MyPlanPage() {
         {activePlan && (
           <section className="space-y-4">
             <h2 className="text-foreground/70 text-lg font-semibold">Rutina activa</h2>
-            <PlanCard plan={activePlan} loggedSessionIds={loggedSessionIds} />
+            <PlanCard
+              plan={activePlan}
+              loggedSessionIds={loggedSessionIds}
+              onToggleSession={handleToggleSession}
+            />
           </section>
         )}
 
@@ -258,7 +299,12 @@ export default function MyPlanPage() {
           <section className="space-y-4">
             <h2 className="text-foreground/40 text-lg font-semibold">Rutinas anteriores</h2>
             {sortedPlans.slice(1).map((plan) => (
-              <PlanCard key={plan.id} plan={plan} loggedSessionIds={loggedSessionIds} />
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                loggedSessionIds={loggedSessionIds}
+                onToggleSession={handleToggleSession}
+              />
             ))}
           </section>
         )}

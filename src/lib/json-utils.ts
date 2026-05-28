@@ -8,11 +8,11 @@ export function safeJsonParse<T = unknown>(
   jsonStr: string | null | undefined,
   fallback: T | null = null
 ): T | null {
-  if (!jsonStr) return fallback;
+  if (!jsonStr) return fallback
   try {
-    return JSON.parse(jsonStr) as T;
+    return JSON.parse(jsonStr) as T
   } catch (e) {
-    console.error("[safeJsonParse] Failed to parse JSON:", e);
-    return fallback;
+    console.error('[safeJsonParse] Failed to parse JSON:', e)
+    return fallback
   }
 }

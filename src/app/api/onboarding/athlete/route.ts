@@ -2,11 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { Goal, Coach, VerificationMethod } from '@prisma/client'
+import { onboardingAthleteSchema, planSchema, nutritionPlanSchema } from '@/lib/validators'
 
 export async function POST(req: NextRequest) {
   try {
     const session = await auth()
     if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const parsed = onboardingAthleteSchema.safeParse(await req.json())
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0]
+      return NextResponse.json({ error: firstError.message }, { status: 400 })
+    }
 
     const {
       fullName,
@@ -18,10 +25,7 @@ export async function POST(req: NextRequest) {
       coachId,
       teamId,
       verificationMethod,
-    } = await req.json()
-
-    if (!fullName?.trim())
-      return NextResponse.json({ error: 'fullName requerido' }, { status: 400 })
+    } = parsed.data
 
     // Atleta debe tener al menos email o teléfono para contacto
     if (!contactEmail?.trim() && !phone?.trim()) {
@@ -185,11 +189,160 @@ export async function POST(req: NextRequest) {
         data: { name: fullName.trim() },
       })
 
-      return newAthlete
+      // Crear plan de entrenamiento inicial
+      const createdPlan = await tx.plan.create({
+        data: {
+          athleteId: newAthlete.id,
+          title: 'Semana 1 - Inicio',
+          weekLabel: 'Semana 1',
+          sessions: {
+            create: [
+              {
+                name: 'Día 1 - Full Body',
+                order: 0,
+                exercises: {
+                  create: [
+                    { exercise: 'Sentadilla', sets: 3, reps: '8-10', order: 0 },
+                    { exercise: 'Press de banca', sets: 3, reps: '8-10', order: 1 },
+                    { exercise: 'Remo', sets: 3, reps: '8-10', order: 2 },
+                  ],
+                },
+              },
+              {
+                name: 'Día 2 - Full Body',
+                order: 1,
+                exercises: {
+                  create: [
+                    { exercise: 'Peso muerto', sets: 3, reps: '6-8', order: 0 },
+                    { exercise: 'Dominadas', sets: 3, reps: '6-8', order: 1 },
+                    { exercise: 'Press militar', sets: 3, reps: '8-10', order: 2 },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      })
+
+      // Crear plan de nutrición inicial
+      const createdNutritionPlan = await tx.nutritionPlan.create({
+        data: {
+          athleteId: newAthlete.id,
+          title: 'Plan Inicial',
+          phase: 'Mantenimiento',
+          kcalTarget: 2000,
+          proteinG: 150,
+          carbsG: 200,
+          fatG: 70,
+          meals: {
+            create: [
+              {
+                name: 'Desayuno',
+                time: '08:00',
+                order: 0,
+                foods: {
+                  create: [
+                    {
+                      food: 'Avena',
+                      quantity: 50,
+                      unit: 'g',
+                      kcal: 190,
+                      proteinG: 7,
+                      carbsG: 33,
+                      fatG: 3,
+                      order: 0,
+                    },
+                    {
+                      food: 'Huevo',
+                      quantity: 2,
+                      unit: 'unidad',
+                      kcal: 140,
+                      proteinG: 12,
+                      carbsG: 1,
+                      fatG: 10,
+                      order: 1,
+                    },
+                  ],
+                },
+              },
+              {
+                name: 'Comida',
+                time: '13:00',
+                order: 1,
+                foods: {
+                  create: [
+                    {
+                      food: 'Pollo',
+                      quantity: 150,
+                      unit: 'g',
+                      kcal: 250,
+                      proteinG: 30,
+                      carbsG: 0,
+                      fatG: 15,
+                      order: 0,
+                    },
+                    {
+                      food: 'Arroz',
+                      quantity: 100,
+                      unit: 'g',
+                      kcal: 130,
+                      proteinG: 3,
+                      carbsG: 28,
+                      fatG: 0,
+                      order: 1,
+                    },
+                  ],
+                },
+              },
+              {
+                name: 'Cena',
+                time: '20:00',
+                order: 2,
+                foods: {
+                  create: [
+                    {
+                      food: 'Pescado',
+                      quantity: 150,
+                      unit: 'g',
+                      kcal: 200,
+                      proteinG: 25,
+                      carbsG: 0,
+                      fatG: 12,
+                      order: 0,
+                    },
+                    {
+                      food: 'Ensalada',
+                      quantity: 100,
+                      unit: 'g',
+                      kcal: 20,
+                      proteinG: 1,
+                      carbsG: 4,
+                      fatG: 0,
+                      order: 1,
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      })
+
+      return {
+        athlete: newAthlete,
+        planId: createdPlan.id,
+        nutritionPlanId: createdNutritionPlan.id,
+      }
     })
 
     return NextResponse.json(
-      { id: athlete.id, coachId: coach.id, teamId: resolvedTeamId },
+      {
+        id: athlete.athlete.id,
+        coachId: coach.id,
+        teamId: resolvedTeamId,
+        planId: athlete.planId,
+        nutritionPlanId: athlete.nutritionPlanId,
+      },
       { status: 201 }
     )
   } catch (error) {

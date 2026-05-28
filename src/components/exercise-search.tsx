@@ -124,7 +124,7 @@ export function ExerciseSearch({
   return (
     <div className="relative w-full" ref={dropdownRef}>
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <Search className="text-foreground/40 absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
         <input
           type="text"
           placeholder="Buscar ejercicio..."
@@ -134,7 +134,7 @@ export function ExerciseSearch({
             setOpen(true)
           }}
           onFocus={() => setOpen(true)}
-          className="w-full rounded-lg border border-gray-300 bg-white pl-10 pr-10 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          className="border-line bg-surface-strong focus:ring-accent/50 w-full rounded-xl border px-3 py-2.5 pr-10 pl-10 text-sm transition focus:ring-1 focus:outline-none"
         />
         {query && (
           <button
@@ -143,7 +143,7 @@ export function ExerciseSearch({
               setResults([])
               setOpen(false)
             }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="text-foreground/40 hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition"
           >
             <X className="h-4 w-4" />
           </button>
@@ -151,18 +151,21 @@ export function ExerciseSearch({
       </div>
 
       {open && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg border border-gray-200 bg-white shadow-lg max-h-96 overflow-y-auto">
+        <div className="border-line bg-surface absolute top-full right-0 left-0 z-50 mt-2 max-h-96 overflow-hidden overflow-y-auto rounded-2xl border shadow-md">
           {loading && (
-            <div className="px-4 py-3 text-sm text-gray-500">Cargando catálogo...</div>
+            <div className="text-foreground/50 px-4 py-4 text-center text-sm">
+              <div className="border-accent/30 border-t-accent inline-block h-4 w-4 animate-spin rounded-full border"></div>
+              <p className="mt-2">Cargando...</p>
+            </div>
           )}
 
           {!loading && results.length === 0 && query && (
-            <div className="px-4 py-3 text-sm text-gray-500">
+            <div className="text-foreground/40 px-4 py-6 text-center text-sm">
               No se encontraron ejercicios
             </div>
           )}
 
-          {results.map((ex) => (
+          {results.map((ex, idx) => (
             <div
               key={ex.name}
               role="button"
@@ -181,23 +184,24 @@ export function ExerciseSearch({
                 setResults([])
                 setOpen(false)
               }}
-              className="flex w-full items-center justify-between px-4 py-2 text-left hover:bg-gray-50 border-b last:border-0"
+              className={`flex items-center justify-between px-4 py-3 text-left transition ${idx !== results.length - 1 ? 'border-line border-b' : ''} hover:bg-accent/5 cursor-pointer`}
             >
-              <div className="flex-1">
-                <div className="font-medium text-gray-900">{ex.name}</div>
-                <div className="text-xs text-gray-500 capitalize">{ex.primaryMuscle}</div>
+              <div className="min-w-0 flex-1">
+                <div className="text-foreground font-medium">{ex.name}</div>
+                <div className="text-foreground/50 mt-0.5 text-xs capitalize">
+                  {ex.primaryMuscle}
+                </div>
               </div>
               {showFavorites && (
                 <button
                   onClick={(e) => toggleFavorite(ex.name, e)}
-                  className="ml-2 p-1 hover:bg-gray-200 rounded shrink-0"
+                  className="text-foreground/40 hover:text-accent ml-3 shrink-0 p-1 transition"
                   type="button"
+                  title={favorites.has(ex.name) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
                 >
                   <Star
-                    className={`h-4 w-4 ${
-                      favorites.has(ex.name)
-                        ? 'fill-amber-400 text-amber-400'
-                        : 'text-gray-400'
+                    className={`h-4 w-4 transition ${
+                      favorites.has(ex.name) ? 'fill-accent text-accent' : ''
                     }`}
                   />
                 </button>

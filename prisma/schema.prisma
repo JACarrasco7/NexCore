@@ -1059,6 +1059,20 @@ model SetLog {
 
 // ─── Nutrition Plan ───────────────────────────────────────────────────────────
 
+model NutritionPhase {
+  id         String @id @default(cuid())
+  planId     String
+  name       String
+  weekStart  Int
+  weekEnd    Int
+  kcalStart  Int
+  kcalEnd    Int
+  proteinG   Int
+  minFatG    Int
+
+  plan NutritionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+}
+
 model NutritionPlan {
   id         String    @id @default(cuid())
   athleteId  String
@@ -1077,6 +1091,8 @@ model NutritionPlan {
   athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
   coach   Coach?  @relation(fields: [coachId], references: [id], onDelete: SetNull)
   meals   Meal[]
+  days    NutritionDay[]
+  phases  NutritionPhase[]
 }
 
 // ─── LLM Calls (auditoría de uso de IA) ──────────────────────────────────────
@@ -1102,28 +1118,43 @@ model LlmCall {
 }
 
 
+model NutritionDay {
+  id        String   @id @default(cuid())
+  planId    String
+  name      String
+  order     Int      @default(0)
+  dayType   String   @default("standard")
+  createdAt DateTime @default(now())
+
+  plan  NutritionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  meals Meal[]
+}
+
 model Meal {
   id     String @id @default(cuid())
   planId String
+  dayId  String?
   name   String
   time   String @default("")
   order  Int    @default(0)
 
   plan  NutritionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  day   NutritionDay? @relation(fields: [dayId], references: [id], onDelete: SetNull)
   foods MealFood[]
 }
 
 model MealFood {
-  id       String @id @default(cuid())
-  mealId   String
-  food     String
-  quantity Float  @default(0)
-  unit     String @default("g")
-  kcal     Int?
-  proteinG Float?
-  carbsG   Float?
-  fatG     Float?
-  order    Int    @default(0)
+  id        String @id @default(cuid())
+  mealId    String
+  food      String
+  quantity  Float  @default(0)
+  unit      String @default("g")
+  kcal      Int?
+  proteinG  Float?
+  carbsG    Float?
+  fatG      Float?
+  order     Int    @default(0)
+  weekNumber Int   @default(1)
 
   meal Meal @relation(fields: [mealId], references: [id], onDelete: Cascade)
 }

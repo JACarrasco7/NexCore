@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/components/ui/toast'
 import { FoodSearch } from '@/components/food-search'
-import { useNutritionPlans, apiFetch, apiPost } from '@/lib/store'
+import { useNutritionPlans } from '@/lib/store'
 import { parseNutritionCsv } from '@/lib/food-csv'
 import { SplitLayout, PageShell, PageHeader } from '@/components/layout'
 import type { Meal, MealFood, NutritionPlan } from '@/lib/domain'
@@ -252,10 +252,10 @@ function PlanForm({
   const [foodProvider, setFoodProvider] = useState<'auto' | 'mfp' | 'local'>('auto')
 
   useEffect(() => {
-    apiFetch('/api/nutrition-templates')
-      .then((rows: any) => {
-        const arr = Array.isArray(rows) ? rows : rows?.items ?? rows ?? []
-        const parsed: MealTemplate[] = (arr as Array<{ id: string; name: string; meals: unknown }>).map((r) => ({
+    fetch('/api/nutrition-templates')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: Array<{ id: string; name: string; meals: unknown }>) => {
+        const parsed: MealTemplate[] = rows.map((r) => ({
           id: r.id,
           name: r.name,
           meals: r.meals as MealTemplate['meals'],
@@ -270,9 +270,11 @@ function PlanForm({
     const q = encodeURIComponent(food.food)
     setResolvingKey(food._key)
     try {
-      const data = await apiFetch<FoodResolveResponse>(
+      const res = await fetch(
         `/api/food-catalog?action=resolve&provider=${foodProvider}&food=${q}&quantity=${quantity}`
       )
+      if (!res.ok) return
+      const data = (await res.json()) as FoodResolveResponse
       setCatalogSource(data.source ?? 'NEXUM-MFP')
       if (!data.item || !data.macros) return
 
@@ -292,20 +294,20 @@ function PlanForm({
   async function loadEquivalences(food: FoodDraft) {
     const quantity = Number(food.quantity || 100)
     const q = encodeURIComponent(food.food)
-    try {
-      const data = await apiFetch<FoodEquivalenceResponse>(
-        `/api/food-catalog?action=equivalences&provider=${foodProvider}&food=${q}&quantity=${quantity}`
-      )
-      setCatalogSource(data.source ?? 'NEXUM-MFP')
-      if (!data.items?.length) {
-        setEquivByFoodKey((prev) => ({ ...prev, [food._key]: [] }))
-        return
-      }
-      const lines = data.items.map(
-        (item) => `${item.quantity}${item.unit} ${item.name} (~${item.kcal} kcal)`
-      )
-      setEquivByFoodKey((prev) => ({ ...prev, [food._key]: lines }))
-    } catch {}
+    const res = await fetch(
+      `/api/food-catalog?action=equivalences&provider=${foodProvider}&food=${q}&quantity=${quantity}`
+    )
+    if (!res.ok) return
+    const data = (await res.json()) as FoodEquivalenceResponse
+    setCatalogSource(data.source ?? 'NEXUM-MFP')
+    if (!data.items?.length) {
+      setEquivByFoodKey((prev) => ({ ...prev, [food._key]: [] }))
+      return
+    }
+    const lines = data.items.map(
+      (item) => `${item.quantity}${item.unit} ${item.name} (~${item.kcal} kcal)`
+    )
+    setEquivByFoodKey((prev) => ({ ...prev, [food._key]: lines }))
   }
 
   async function suggestFoods(food: FoodDraft) {
@@ -315,16 +317,16 @@ function PlanForm({
       return
     }
 
-    try {
-      const data = await apiFetch<FoodSearchResponse>(
-        `/api/food-catalog?action=search&provider=${foodProvider}&q=${encodeURIComponent(q)}`
-      )
-      setCatalogSource(data.source ?? 'NEXUM-MFP')
-      setFoodHints((prev) => ({
-        ...prev,
-        [food._key]: data.results.map((r) => r.name).slice(0, 5),
-      }))
-    } catch {}
+    const res = await fetch(
+      `/api/food-catalog?action=search&provider=${foodProvider}&q=${encodeURIComponent(q)}`
+    )
+    if (!res.ok) return
+    const data = (await res.json()) as FoodSearchResponse
+    setCatalogSource(data.source ?? 'NEXUM-MFP')
+    setFoodHints((prev) => ({
+      ...prev,
+      [food._key]: data.results.map((r) => r.name).slice(0, 5),
+    }))
   }
 
   function importCsvRows() {
@@ -442,11 +444,13 @@ function PlanForm({
       if (existing?.id) {
         await fetch(`/api/nutrition-templates/${existing.id}`, { method: 'DELETE' })
       }
-      try {
-        const saved = await apiPost<{ id: string; name: string; meals: unknown }>(
-          '/api/nutrition-templates',
-          { name, meals: snapshot.meals }
-        )
+      const res = await fetch('/api/nutrition-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, meals: snapshot.meals }),
+      })
+      if (res.ok) {
+        const saved = (await res.json()) as { id: string; name: string; meals: unknown }
         const withoutSameName = templates.filter((t) => t.name.toLowerCase() !== name.toLowerCase())
         setTemplates(
           [
@@ -454,8 +458,6 @@ function PlanForm({
             ...withoutSameName,
           ].slice(0, 20)
         )
-      } catch (err) {
-        // Ignore save errors; toast already handled elsewhere if desired
       }
     } finally {
       setTemplatesSaving(false)
@@ -568,9 +570,17 @@ function PlanForm({
       if (initial) {
         // For now delete + recreate (simplest approach)
         await fetch(`/api/nutrition-plans/${initial.id}`, { method: 'DELETE' })
-        await apiPost('/api/nutrition-plans', payload)
+        await fetch('/api/nutrition-plans', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
       } else {
-        await apiPost('/api/nutrition-plans', payload)
+        await fetch('/api/nutrition-plans', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
       }
       onSaved()
     } finally {
@@ -985,16 +995,6 @@ function NutritionEditorContent() {
   const [pendingDelete, setPendingDelete] = useState<NutritionPlan | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  // Si la URL contiene ?create=true y hay athleteId, abrir el formulario automáticamente
-  useEffect(() => {
-    try {
-      const shouldCreate = searchParams.get('create') === 'true'
-      if (shouldCreate && athleteId) setCreating(true)
-    } catch {
-      // ignore
-    }
-  }, [searchParams, athleteId])
-
   if (!athleteId) {
     return (
       <EmptyState
@@ -1105,10 +1105,16 @@ function NutritionEditorWithAside() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    apiFetch('/api/athletes')
-      .then((d: any) => {
-        const arr = Array.isArray(d) ? d : d?.items ?? d?.athletes ?? []
-        const mapped: AthleteListItem[] = (arr as Array<{ id: string; fullName: string; goal?: string }>).map((a) => ({
+    fetch('/api/athletes')
+      .then(async (r) => {
+        if (!r.ok) return []
+        const data = await r.json()
+        return Array.isArray(data) ? data : (data?.athletes ?? [])
+      })
+      .then((d: unknown[]) => {
+        const mapped: AthleteListItem[] = (
+          d as Array<{ id: string; fullName: string; goal?: string }>
+        ).map((a) => ({
           id: a.id,
           fullName: a.fullName,
           goal: a.goal ?? '',

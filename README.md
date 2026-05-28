@@ -27,16 +27,31 @@ La implementacion actual incluye:
 npm run dev
 npm run build
 npm run lint
+npm run sync      # Build + Capacitor sync (para móvil)
+npm run android   # Abrir Android Studio
+npm run test      # Vitest unit tests
+npm run test:e2e  # Playwright E2E
 ```
 
 ## Rutas actuales
 
-- `/`
-- `/coach`
-- `/coach/import-lab`
-- `/athlete/onboarding`
-- `/athlete/training-log`
-- `/athlete/check-in`
+- `/` - Home
+- `/coach` - Dashboard coach
+- `/coach/import-lab` - Importación de planes
+- `/athlete/onboarding` - Onboarding atleta
+- `/athlete/training-log` - Registro de entrenamientos
+- `/athlete/check-in` - Check-in semanal
+- `/videos` - Lista de videos (web)
+- `/videos/[id]` - Detalle de video + editor + RIR + export PDF
+- `/mobile` - Interfaz móvil (Capacitor)
+
+## App Móvil (Capacitor)
+
+- Cámara integrada con `@capacitor/camera`
+- Editor de video con anotaciones (Fabric.js)
+- Detección de pose con MediaPipe
+- Registro RIR manual y automático
+- Sync offline con backend vía `/api/sync`
 
 ## Documentacion y memoria
 
