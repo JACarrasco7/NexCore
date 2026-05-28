@@ -1,106 +1,125 @@
-# Deploy Demo — Vercel + PlanetScale ($0/mes)
+# Deploy Demo — Vercel + TiDB Cloud (serverless gratis)
 
-> Todo lo automatizable ya está hecho. Solo quedan pasos manuales con autenticación web.
+Guía paso a paso para crear un cluster en TiDB Cloud, conectar con Prisma y desplegar en Vercel.
 
 ---
 
 ## ✅ Ya hecho por Copilot
 
 - [x] `vercel.json` — build config para Vercel
-- [x] Código pusheado a `JACarrasco7/ApexCoachOS` (rama `fix/branch-protection-workflow`)
+- [x] Código pusheado a `JACarrasco7/NexCore` (rama `fix/branch-protection-workflow`)
 - [x] `llm-proxy/` — proxy de failover con 10 APIs (corre local, no en Vercel)
 - [x] `AUTH_SECRET` generado (abajo)
 
 ---
 
-## 🔑 Paso 1: PlanetScale — Crear BD (5 min, manual)
+## 🔑 Paso 1: TiDB Cloud — Crear cluster serverless (5-10 min)
 
-1. Ve a **[planetscale.com](https://planetscale.com)** → **Sign up** (GitHub)
-2. **New Database** → nombre: `apexcoach` → región: `us-east-1` → plan: **Free**
-3. Una vez creada, ve a la pestaña **"Connect"**
-4. Selecciona **"Prisma"** como framework
-5. Copia el `DATABASE_URL`. Será algo como:
+1. Entra a https://tidbcloud.com y crea una cuenta (puedes usar GitHub).
+2. Crea un **Project** y dentro de él selecciona **Create Cluster**.
+   - Elige **Serverless** (tier gratuito) o el plan que prefieras.
+   - Selecciona proveedor de nube y región (ej. `us-east-1`) y pon nombre `apexcoach`.
+3. Espera a que el cluster esté `Running` (tarda unos minutos).
+4. En la página del cluster → **Connect** → copia la **connection string** para MySQL.
+   - Ejemplo de `DATABASE_URL` (prisma compatible):
 
 ```
-mysql://xxx:pscale_pw_xxx@aws.connect.psdb.cloud/apexcoach?sslaccept=strict
+mysql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DATABASE>?sslaccept=strict
 ```
+
+5. Seguridad / allowlist:
+   - Para desarrollo local añade tu IP pública actual a la lista de acceso (Security / IP Whitelist).
+   - Si vas a desplegar en Vercel: o bien añades las IPs de Vercel (si tienes control), o temporalmente permite acceso desde cualquier IP (`0.0.0.0/0`) y restringe por credenciales. Nota: `0.0.0.0/0` reduce seguridad.
+
+6. Si TiDB Cloud ofrece un certificado CA para conexión TLS, descárgalo (opcional) y úsalo con `sslcert=./cert.pem` en la cadena si lo necesitas.
 
 ---
 
-## 🔑 Paso 2: Crear tablas (3 min, manual)
+## 🔑 Paso 2: Probar localmente y crear tablas (3-7 min)
 
-En **PowerShell** (desde tu PC, no en Vercel):
+En **PowerShell** (desde tu PC):
 
 ```powershell
-cd c:\laragon\www\app_fitness
+cd C:\laragon\www\app_fitness
 
-# Pega el DATABASE_URL de PlanetScale
-$env:DATABASE_URL = "mysql://xxx:pscale_pw_xxx@aws.connect.psdb.cloud/apexcoach?sslaccept=strict"
+# Pega aquí la connection string que copiaste de TiDB Cloud
+$env:DATABASE_URL = "mysql://USER:PASSWORD@HOST:PORT/DATABASE?sslaccept=strict"
 
-# Crear todas las tablas
+# Generar cliente Prisma
+npx prisma generate
+
+# Si tienes migrations (recomendado en producción):
+npx prisma migrate deploy
+
+# Alternativa (empujar esquema directamente):
 npx prisma db push
 
-# (Opcional) Datos de prueba
+# (Opcional) Ejecutar seeds si están configurados
 npx prisma db seed
 ```
 
-Si `prisma db push` falla con error de FK:
+Notas:
+
+- Si tu proyecto contiene migraciones en `prisma/migrations`, usa `npx prisma migrate deploy` para aplicar las migraciones en orden.
+- `prisma db push` aplica el esquema directamente (útil para pruebas rápidas pero no recomendado para producción con historial de migraciones).
+
+---
+
+## 🔑 Paso 3: Configurar variables de entorno en Vercel
+
+En el dashboard de Vercel → Settings → Environment Variables, añade las siguientes variables:
+
+| Variable       | Ejemplo / Descripción                                             |
+| -------------- | ----------------------------------------------------------------- |
+| `DATABASE_URL` | La connection string MySQL copiada de TiDB Cloud (formato arriba) |
+| `AUTH_SECRET`  | Cadena segura base64 (ver comando abajo)                          |
+| `NEXTAUTH_URL` | `https://TU-PROYECTO.vercel.app` (se actualiza tras deploy)       |
+
+Opcionales (si usas email, R2, etc): `RESEND_API_KEY`, `EMAIL_FROM`, `R2_*`.
+
+---
+
+## 🔑 Paso 4: Deploy en Vercel (5 min)
+
+1. Entra a https://vercel.com → conecta tu cuenta GitHub.
+2. Importa el repo `JACarrasco7/NexCore` y configura el proyecto.
+   - Build Command: `npx prisma generate && next build`
+   - Install Command: `npm install --legacy-peer-deps`
+3. Pega las Environment Variables (ver Paso 3).
+4. Deploy: espera 2-3 min.
+5. Tras el primer deploy, actualiza `NEXTAUTH_URL` con el dominio final que Vercel entrega y redeploy.
+
+---
+
+## 🔧 Comandos útiles
+
+- Obtener IP pública (PowerShell):
 
 ```powershell
-# Plan B: generar schema SQL y ejecutarlo manualmente
-npx prisma migrate dev --name init --create-only
-# Luego en PlanetScale dashboard → Console → pegar el SQL de la migración
+(Invoke-RestMethod -Uri https://ifconfig.me).Trim()
+```
+
+- Generar `AUTH_SECRET` (local):
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+- Prisma: generar cliente y aplicar migraciones (ejemplo):
+
+```bash
+npx prisma generate
+npx prisma migrate deploy
+npx prisma db seed
 ```
 
 ---
 
-## 🔑 Paso 3: Vercel — Deploy (5 min, manual)
+## ⚠️ Notas y seguridad
 
-1. Ve a **[vercel.com](https://vercel.com)** → **Sign up** (GitHub)
-2. **Add New → Project**
-3. Importa `JACarrasco7/ApexCoachOS`
-4. En **Build & Development Settings**:
-   - Framework: Next.js (auto)
-   - Build Command: `npx prisma generate && next build`
-   - Install Command: `npm install --legacy-peer-deps`
-
-5. **Environment Variables** (copia y pega):
-
-| Variable       | Valor                                                                         |
-| -------------- | ----------------------------------------------------------------------------- |
-| `DATABASE_URL` | `mysql://xxx:pscale_pw_xxx@aws.connect.psdb.cloud/apexcoach?sslaccept=strict` |
-| `AUTH_SECRET`  | `P3P90iP6gRtEzEdgiBsQm1bBDhePyWAQnvle8OJSugY=`                                |
-| `NEXTAUTH_URL` | `https://TU-PROYECTO.vercel.app` (Vercel te lo da al hacer deploy)            |
-
-**Opcionales para demo** (dejar vacíos y la app funciona igual):
-
-| Variable         | Para qué                     |
-| ---------------- | ---------------------------- |
-| `RESEND_API_KEY` | Email (recuperación, verify) |
-| `EMAIL_FROM`     | Remitente emails             |
-
-6. **Deploy** → espera 2-3 min
-
----
-
-## 🔧 Paso 4: Actualizar NEXTAUTH_URL
-
-Tras el primer deploy, Vercel te da un dominio tipo `apexcoach-xxx.vercel.app`.
-
-1. Vercel → Settings → Environment Variables
-2. Edita `NEXTAUTH_URL` → `https://apexcoach-xxx.vercel.app`
-3. **Redeploy**
-
----
-
-## ⚠️ Limitaciones demo gratuita
-
-| Recurso                     | Límite                           | Solución                                               |
-| --------------------------- | -------------------------------- | ------------------------------------------------------ |
-| Uploads (`/public/uploads`) | No persiste en Vercel            | Configurar R2 (gratis 10GB) — vars `R2_*` ya en código |
-| PlanetScale free            | 1B rows/mes, 1 DB, 1 branch      | OK para demo                                           |
-| Vercel free                 | 100 GB bandwidth, 6000 min build | OK para demo                                           |
-| Cold start                  | 1-3s sin tráfico                 | Normal en plan gratis                                  |
+- Vercel no siempre tiene IPs estáticas; para producción considera un proveedor con IP fija o una conexión privada/VPC si necesitas restringir origen.
+- Mantén el `DATABASE_URL` privado en Vercel y no lo subas a git.
+- Si usas `0.0.0.0/0` en la whitelist, asegúrate de tener contraseñas fuertes y rotación de credenciales.
 
 ---
 
@@ -109,7 +128,7 @@ Tras el primer deploy, Vercel te da un dominio tipo `apexcoach-xxx.vercel.app`.
 El proxy de failover NO se despliega en Vercel — corre solo en tu PC:
 
 ```powershell
-node c:\laragon\www\app_fitness\llm-proxy\server.js
+node C:\laragon\www\app_fitness\llm-proxy\server.js
 # → http://localhost:3000 con 10 APIs en cascada
 ```
 
@@ -117,9 +136,10 @@ node c:\laragon\www\app_fitness\llm-proxy\server.js
 
 ## 📋 Resumen: lo que tienes que hacer tú
 
-1. Crear cuenta en PlanetScale → crear BD → copiar `DATABASE_URL`
-2. Ejecutar `npx prisma db push` desde tu PC contra PlanetScale
-3. Crear cuenta en Vercel → importar repo → pegar 3 env vars → Deploy
-4. Actualizar `NEXTAUTH_URL` con el dominio de Vercel → Redeploy
+1. Crear cuenta en TiDB Cloud → crear Project → crear cluster serverless → copiar connection string
+2. Añadir tu IP pública en la whitelist para pruebas locales (y considerar opciones para Vercel)
+3. En local: `npx prisma generate` + `npx prisma migrate deploy` (o `db push`) + `npx prisma db seed`
+4. En Vercel: crear proyecto, añadir `DATABASE_URL`, `AUTH_SECRET`, `NEXTAUTH_URL` → Deploy
+5. Actualizar `NEXTAUTH_URL` tras primer deploy y redeploy
 
-**Tiempo total: ~15 min. Coste: $0/mes.**
+**Tiempo total estimado: ~15-25 min. Coste: plan serverless gratuito de TiDB Cloud.**
