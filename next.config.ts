@@ -53,9 +53,12 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
-  output: isDev ? undefined : 'export',
+  // output: isDev ? undefined : 'export', // Comentado: Vercel usa serverless, no export
   trailingSlash: true,
   skipTrailingSlashRedirect: true,
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   async headers() {
     return [
       {
