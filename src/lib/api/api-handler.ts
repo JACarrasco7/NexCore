@@ -6,7 +6,14 @@ import type { AppSession } from '@/types/auth'
 
 export type ApiContext = {
   params: Record<string, string>
-  session: AppSession | null
+  session: AppSession
+  req: NextRequest
+}
+
+/** Context for public routes — session may be null */
+export type PublicApiContext = {
+  params: Record<string, string>
+  session: null
   req: NextRequest
 }
 
