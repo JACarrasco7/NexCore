@@ -1,5 +1,5 @@
 {
-  "buildCommand": "NEXT_SKIP_TYPE_CHECK=true npx prisma generate && next build",
+  "buildCommand": "export NEXT_SKIP_TYPE_CHECK=true && npx prisma generate && next build",
   "installCommand": "npm install --legacy-peer-deps",
   "framework": "nextjs",
   "outputDirectory": ".next"
