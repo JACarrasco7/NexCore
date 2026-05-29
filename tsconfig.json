@@ -30,5 +30,17 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "prisma",
+    "scripts",
+    "temp-*.mjs",
+    "verify-*.mjs",
+    "e2e",
+    "android",
+    "capacitor.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "tailwind.config.ts"
+  ]
 }
