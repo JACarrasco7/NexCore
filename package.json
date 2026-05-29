@@ -19,6 +19,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.100.1",
     "@auth/prisma-adapter": "^2.11.2",
     "@capacitor-community/sqlite": "^8.1.0",
     "@capacitor/android": "^8.3.4",
@@ -51,6 +52,7 @@
     "react-dom": "19.2.4",
     "react-hook-form": "^7.76.1",
     "recharts": "^3.8.1",
+    "twilio": "^6.0.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
