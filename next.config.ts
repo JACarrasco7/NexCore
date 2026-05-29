@@ -59,6 +59,8 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Fix Vercel NFT trace for middleware
+  outputFileTracingRoot: process.cwd(),
   async headers() {
     return [
       {
